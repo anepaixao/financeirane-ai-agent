@@ -1,3 +1,8 @@
+# Variáveis de ambiente e credenciais
 .env
-venv/
 credenciais.json
+
+# Ambientes virtuais e arquivos do sistema Python
+venv/
+__pycache__/
+*.pyc
