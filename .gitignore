@@ -1,8 +1,20 @@
 # Variáveis de ambiente e credenciais
 .env
+.env.*
+!.env.example
 credenciais.json
+credentials.json
+service-account*.json
+*.pem
+*.key
 
 # Ambientes virtuais e arquivos do sistema Python
 venv/
+.venv/
 __pycache__/
 *.pyc
+
+# Arquivos locais de editor/sistema
+.DS_Store
+.vscode/
+.idea/

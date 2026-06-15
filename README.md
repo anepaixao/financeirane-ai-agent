@@ -1,34 +1,68 @@
-# Financeirane
+# 🤖 Financeirane - Autonomous AI Financial Agent
 
-Assistente financeira autonoma baseada em mensageria, criada para registrar e consultar gastos pessoais a partir de mensagens em texto livre no Telegram.
+> **Status do Projeto:** Ativo e em operação contínua.  
+> Sistema agêntico modular construído em Python, integrando Modelos de Linguagem (LLM), Telegram e Google Workspace APIs.
 
-## Visao Geral
+A **Financeirane** é uma assistente financeira autônoma baseada em mensageria, desenhada para eliminar o atrito do registro de fluxo de caixa pessoal. Operando diretamente via Telegram, ela não exige comandos engessados: interpreta linguagem natural, categoriza dados dinamicamente com **Google Gemini 2.5 Flash** e gerencia um banco de dados em nuvem usando **Google Sheets** em tempo real.
 
-A Financeirane recebe mensagens naturais como `gastei 50 no ifood` ou `comprei um curso de 300 em 3 vezes`, interpreta a intencao com IA, estrutura os dados em JSON e salva as informacoes em uma planilha do Google Sheets.
+O objetivo do projeto é simples: transformar frases comuns como `gastei 50 no ifood` ou `comprei um curso de 300 em 3 vezes` em registros financeiros organizados, consultáveis e persistidos automaticamente.
 
-O sistema tambem entende consultas, como `quanto eu gastei este mes?`, acessa a planilha, filtra os registros do periodo solicitado e devolve um resumo financeiro diretamente no Telegram.
+---
 
-## Stack
+## 🧠 Arquitetura do Sistema Agêntico
+
+A Financeirane segue um fluxo inspirado em sistemas agênticos: **perceber, raciocinar, agir e iterar**.
+
+### 1. Percepção: Input via Telegram
+
+O bot recebe mensagens naturais pelo Telegram usando `pyTelegramBotAPI`. O acesso é protegido por `AUTHORIZED_CHAT_IDS`, garantindo que apenas chats explicitamente autorizados possam registrar dados ou consultar informações financeiras.
+
+Exemplos de entrada:
+
+```text
+gastei 50 no ifood
+comprei um celular de 1200 em 3 vezes
+quanto eu gastei este mês?
+```
+
+### 2. Raciocínio: NLP com Gemini
+
+A API do **Google Gemini 2.5 Flash** atua como motor de interpretação. Ela identifica a intenção da mensagem, extrai valores, datas, descrições, parcelas e categorias, retornando um JSON estruturado para o restante da aplicação.
+
+### 3. Ação: Python + Google Sheets
+
+Com o JSON interpretado, a camada Python executa a regra de negócio: valida dados, calcula parcelas, normaliza categorias, grava linhas na planilha ou consulta registros existentes. O Google Sheets funciona como banco de dados em nuvem, acessado via `gspread` e credenciais do Google Cloud.
+
+### 4. Iteração: Resposta ao Usuário
+
+Após registrar ou consultar os dados, a Financeirane devolve uma resposta formatada no próprio Telegram, fechando o ciclo sem que o usuário precise abrir planilhas ou preencher formulários manualmente.
+
+---
+
+## ⚙️ Stack Tecnológica
 
 - **Linguagem:** Python 3
-- **Interface:** Telegram, via `pyTelegramBotAPI` / `telebot`
+- **Interface de usuário:** Telegram, via `pyTelegramBotAPI` / `telebot`
 - **IA / NLP:** Google Gemini 2.5 Flash, via `google-genai`
-- **Banco de dados:** Google Sheets, via `gspread` e Google Cloud API
-- **Seguranca:** `python-dotenv` para carregar tokens e chaves a partir de `.env`
+- **Banco de dados em nuvem:** Google Sheets, via `gspread`
+- **Configuração segura:** `python-dotenv`
+- **Credenciais externas:** Google Cloud Service Account
 
-## Funcionalidades
+---
 
-### Processamento de texto livre
+## ✨ Funcionalidades em Destaque
 
-Nao e necessario usar comandos rigidos como `/gasto 50`. A Financeirane interpreta frases naturais e envia o texto para o Gemini, que retorna um JSON padronizado com intencao, data, tipo, valor, descricao, parcelas e categoria.
+### Processamento de Texto Livre para JSON
 
-Exemplo:
+Não é necessário usar comandos rígidos como `/gasto 50`. A IA interpreta linguagem natural e estrutura a carga de dados.
+
+**Input:**
 
 ```text
 gastei 50 no ifood
 ```
 
-Resultado esperado:
+**Output do motor de IA:**
 
 ```json
 {
@@ -42,106 +76,144 @@ Resultado esperado:
 }
 ```
 
-### Classificacao automatica de categorias
+### Classificação Automática de Categorias
 
-O bot classifica os registros em uma lista restrita de categorias:
+O sistema classifica os lançamentos em uma lista controlada de categorias pessoais:
 
-- Cartao de Credito
+- Cartão de Crédito
 - Aluguel
 - Feira
 - Internet
 - Transporte
 - Lazer
-- Saude
-- Educacao
+- Saúde
+- Educação
 - Outros
 
-### Parcelamento automatico
+### Motor de Parcelamento Inteligente
 
-Quando uma compra e informada com parcelas, o codigo calcula automaticamente os vencimentos dos meses seguintes e cria uma linha para cada parcela na planilha.
-
-Exemplo:
+Ao informar uma compra parcelada, como:
 
 ```text
 comprei um celular de 1200 em 3 vezes
 ```
 
-O sistema registra:
+A Financeirane calcula os vencimentos futuros, cria uma linha para cada parcela e identifica cada registro como `Parcela 1/3`, `Parcela 2/3`, `Parcela 3/3`.
 
-- Parcela 1/3
-- Parcela 2/3
-- Parcela 3/3
+A lógica considera viradas de mês e de ano, incluindo meses com 28, 30 ou 31 dias.
 
-A logica considera viradas de ano e meses com 28, 30 ou 31 dias.
+### Inserção Otimizada no Google Sheets
 
-### Insercao otimizada na planilha
+Os registros são gravados sempre na **linha 2** da planilha, logo abaixo do cabeçalho. Isso mantém os lançamentos mais recentes no topo, facilitando a visualização imediata ao abrir o documento.
 
-Os registros sao inseridos sempre na linha 2 do Google Sheets, logo abaixo do cabecalho. Assim, os lancamentos mais recentes aparecem primeiro quando a planilha e aberta.
+### Consultas Bidirecionais
 
-### Consultas e relatorios
-
-A IA diferencia mensagens de registro e mensagens de consulta. Em perguntas como:
+O bot diferencia mensagens de registro e de consulta. Ao perguntar:
 
 ```text
-quanto eu gastei este mes?
+quanto eu gastei este mês?
 ```
 
-o bot acessa o Google Sheets, le todas as linhas, filtra os gastos do mes e ano solicitados, soma os valores e envia um relatorio formatado no Telegram.
+A aplicação lê o Google Sheets, filtra os gastos do mês e ano solicitados, soma os valores e devolve um relatório diretamente no Telegram.
 
-## Estrutura do Projeto
+### Segurança de Acesso
+
+A variável `AUTHORIZED_CHAT_IDS` restringe quem pode usar o bot. Mesmo que outra pessoa encontre o bot no Telegram, ela não consegue registrar dados nem consultar sua planilha.
+
+---
+
+## 🏗️ Estrutura do Projeto
 
 ```text
 .
-├── main.py           # Bot principal: Telegram, Gemini, Google Sheets e regras de negocio
-├── teste_gemini.py   # Script auxiliar para listar modelos Gemini disponiveis
-├── requirements.txt  # Dependencias do ambiente Python
-├── .gitignore        # Arquivos sensiveis e locais ignorados pelo Git
-└── LICENSE           # Licenca MIT
+├── main.py             # Maestro: escuta o Telegram e coordena os fluxos
+├── config.py           # Carrega variáveis do .env e constantes do projeto
+├── gemini_service.py   # Cérebro: envia texto ao Gemini e retorna JSON estruturado
+├── sheets_service.py   # Memória: registra e consulta dados no Google Sheets
+├── teste_gemini.py     # Script auxiliar para listar modelos Gemini disponíveis
+├── requirements.txt    # Dependências do ambiente Python
+├── .env.example        # Exemplo seguro das variáveis de ambiente
+├── .gitignore          # Arquivos sensíveis e locais ignorados pelo Git
+└── LICENSE             # Licença MIT
 ```
 
-## Configuracao
+---
 
-### 1. Criar e ativar o ambiente virtual
+## 🚀 Como Configurar e Executar
+
+### 1. Clonar o repositório
+
+```bash
+git clone <url-do-repositorio>
+cd financeirane-ai-agent
+```
+
+Se você já está na pasta do projeto, pule esta etapa.
+
+### 2. Criar e ativar o ambiente virtual
 
 ```bash
 python3 -m venv venv
 source venv/bin/activate
 ```
 
-### 2. Instalar as dependencias
+### 3. Instalar as dependências
 
 ```bash
 pip install -r requirements.txt
 ```
 
-Dependencias principais esperadas pelo projeto:
+Dependências principais:
 
-```bash
-pip install pyTelegramBotAPI google-genai google-generativeai gspread python-dotenv
+```text
+pyTelegramBotAPI
+google-genai
+google-generativeai
+gspread
+python-dotenv
 ```
 
-### 3. Criar o arquivo `.env`
+### 4. Configurar variáveis de ambiente
 
-Na raiz do projeto, crie um arquivo `.env` com:
+Crie um arquivo `.env` na raiz do projeto. Você pode usar o `.env.example` como referência.
 
 ```env
 TELEGRAM_TOKEN=seu_token_do_telegram
 GEMINI_API_KEY=sua_chave_do_gemini
+AUTHORIZED_CHAT_IDS=123456789
 ```
 
-### 4. Configurar credenciais do Google Sheets
+Para descobrir o ID do seu chat, inicie o bot e envie:
+
+```text
+/id
+```
+
+ou:
+
+```text
+/meu_id
+```
+
+Para autorizar mais de um chat, separe os IDs por vírgula:
+
+```env
+AUTHORIZED_CHAT_IDS=123456789,987654321
+```
+
+### 5. Configurar credenciais do Google Cloud
 
 1. Crie um projeto no Google Cloud.
-2. Ative a Google Sheets API.
-3. Crie uma conta de servico.
+2. Ative a **Google Sheets API**.
+3. Crie uma **conta de serviço**.
 4. Baixe o arquivo JSON de credenciais.
 5. Renomeie o arquivo para `credenciais.json`.
 6. Coloque o arquivo na raiz do projeto.
-7. Compartilhe a planilha `Financeirane` com o e-mail da conta de servico.
+7. Compartilhe a planilha `Financeirane` com o e-mail da conta de serviço.
 
-O arquivo `credenciais.json` esta no `.gitignore` e nao deve ser versionado.
+O arquivo `credenciais.json` já está protegido pelo `.gitignore` e não deve ser versionado.
 
-### 5. Preparar a planilha
+### 6. Preparar a planilha
 
 Crie uma planilha no Google Sheets chamada:
 
@@ -149,31 +221,41 @@ Crie uma planilha no Google Sheets chamada:
 Financeirane
 ```
 
-Use a primeira aba da planilha com este cabecalho:
+Na primeira aba, use o cabeçalho obrigatório:
 
 ```text
 Data | Tipo | Valor | Descricao | Parcelas | Categoria
 ```
 
-## Como Executar
+### 7. Iniciar o bot
 
 Com o ambiente virtual ativo:
 
 ```bash
-python main.py
+python3 main.py
 ```
 
-Se tudo estiver configurado corretamente, o terminal exibira mensagens indicando que a conexao com o Google Sheets foi realizada e que a Financeirane esta online.
-
-## Testar Modelos Gemini
-
-Para listar os modelos disponiveis para a sua chave:
+Ou diretamente pelo Python do ambiente virtual:
 
 ```bash
-python teste_gemini.py
+venv/bin/python3 main.py
 ```
 
-## Exemplos de Uso
+Se tudo estiver configurado corretamente, o terminal exibirá mensagens indicando a conexão com o Google Sheets e que a Financeirane está online.
+
+---
+
+## 🧪 Testar Modelos Gemini
+
+Para listar os modelos disponíveis para sua chave Gemini:
+
+```bash
+python3 teste_gemini.py
+```
+
+---
+
+## 💬 Exemplos de Uso
 
 Registrar gasto simples:
 
@@ -193,13 +275,23 @@ Registrar receita:
 recebi 1500 de freelas
 ```
 
-Consultar gastos:
+Consultar gastos do mês:
 
 ```text
-quanto eu tenho para pagar este mes?
+quanto eu tenho para pagar este mês?
 ```
 
-## Seguranca
+Consultar um período específico:
+
+```text
+quanto gastei em junho de 2026?
+```
+
+---
+
+## 🛡️ Segurança e Privacidade
+
+A Financeirane foi pensada para uso pessoal com proteção de acesso e isolamento de credenciais.
 
 Nunca envie para o GitHub:
 
@@ -209,8 +301,27 @@ Nunca envie para o GitHub:
 - chaves da API Gemini
 - credenciais do Google Cloud
 
-Esses arquivos ja estao previstos no `.gitignore`.
+Esses arquivos já estão previstos no `.gitignore`.
 
-## Licenca
+Além disso, o bot usa `AUTHORIZED_CHAT_IDS` para impedir que pessoas não autorizadas registrem dados ou consultem sua planilha financeira.
 
-Este projeto esta licenciado sob a licenca MIT.
+---
+
+## 📌 Roadmap Possível
+
+- Suporte a múltiplas planilhas ou abas por usuário.
+- Relatórios por categoria.
+- Resumo semanal e mensal automático.
+- Gráficos financeiros usando dados do Google Sheets.
+- Migração opcional para banco relacional dedicado.
+- Deploy contínuo em servidor ou plataforma cloud.
+
+---
+
+## 📄 Licença
+
+Este projeto está licenciado sob a licença MIT.
+
+---
+
+Arquitetado e desenvolvido por **Ane Paixão**.
