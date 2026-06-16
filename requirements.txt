@@ -1,5 +1,14 @@
-google-genai
-google-generativeai
-gspread
-pyTelegramBotAPI
-python-dotenv
+# IA / Gemini
+google-genai==2.6.0
+google-generativeai==0.8.6
+
+# Telegram
+pyTelegramBotAPI==4.33.0
+
+# Google Sheets / Google Cloud Auth
+gspread==6.2.1
+google-auth==2.53.0
+google-auth-oauthlib==1.4.0
+
+# Variaveis de ambiente
+python-dotenv==1.2.2
