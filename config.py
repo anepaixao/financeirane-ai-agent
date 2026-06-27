@@ -1,9 +1,11 @@
+import logging
 import os
 
 from dotenv import load_dotenv
 
 
 load_dotenv()
+logger = logging.getLogger(__name__)
 
 TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
@@ -51,4 +53,4 @@ validate_required_settings()
 AUTHORIZED_CHAT_IDS = parse_authorized_chat_ids(AUTHORIZED_CHAT_IDS_RAW)
 
 if not AUTHORIZED_CHAT_IDS:
-    print("⚠️ AUTHORIZED_CHAT_IDS não configurado. O bot só responderá /id e /meu_id.")
+    logger.warning("AUTHORIZED_CHAT_IDS não configurado. O bot ignorará mensagens de todos os usuários.")

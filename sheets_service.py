@@ -1,7 +1,10 @@
 import calendar
+import logging
+import time
 from datetime import datetime
 
 import gspread
+from gspread.exceptions import APIError
 
 from config import (
     CATEGORIAS_PERMITIDAS,
@@ -11,12 +14,21 @@ from config import (
     TIPOS_PERMITIDOS,
 )
 
+MAX_TENTATIVAS_ESCRITA = 3
+TEMPO_ESPERA_INICIAL = 2
+STATUS_TRANSIENTES = {408, 429, 500, 502, 503, 504}
+logger = logging.getLogger(__name__)
+
+
+class PlanilhaEscritaError(Exception):
+    pass
+
 
 def conectar_planilha():
-    print("Conectando ao Google Planilhas...")
+    logger.info("Conectando ao Google Planilhas.")
     gc = gspread.service_account(filename=GOOGLE_CREDENTIALS_FILE)
     planilha = gc.open(SPREADSHEET_NAME).sheet1
-    print(f"Conectado à planilha '{SPREADSHEET_NAME}'!")
+    logger.info("Conectado à planilha configurada.")
     return planilha
 
 
@@ -46,6 +58,51 @@ def normalizar_tipo(tipo):
     return tipo_normalizado if tipo_normalizado in TIPOS_PERMITIDOS else "gasto"
 
 
+def obter_status_code_google(erro):
+    resposta = getattr(erro, "response", None)
+    if resposta is None:
+        return None
+    return getattr(resposta, "status_code", None)
+
+
+def erro_transiente_google(erro):
+    if isinstance(erro, APIError):
+        status_code = obter_status_code_google(erro)
+        return status_code in STATUS_TRANSIENTES
+
+    nome_erro = erro.__class__.__name__.lower()
+    return "timeout" in nome_erro or "connection" in nome_erro
+
+
+def inserir_linha_com_retry(planilha, linha, index):
+    ultima_excecao = None
+
+    for tentativa in range(1, MAX_TENTATIVAS_ESCRITA + 1):
+        try:
+            planilha.insert_row(linha, index=index)
+            return
+        except Exception as exc:
+            ultima_excecao = exc
+
+            if not erro_transiente_google(exc) or tentativa == MAX_TENTATIVAS_ESCRITA:
+                raise PlanilhaEscritaError(
+                    f"Falha ao escrever na planilha após {tentativa} tentativa(s)."
+                ) from exc
+
+            tempo_espera = TEMPO_ESPERA_INICIAL * (2 ** (tentativa - 1))
+            logger.warning(
+                "Falha temporária ao escrever no Google Sheets. "
+                "tentativa=%s/%s nova_tentativa_em=%ss erro=%s",
+                tentativa,
+                MAX_TENTATIVAS_ESCRITA,
+                tempo_espera,
+                exc.__class__.__name__,
+            )
+            time.sleep(tempo_espera)
+
+    raise PlanilhaEscritaError("Falha inesperada ao escrever na planilha.") from ultima_excecao
+
+
 def registrar_movimentacao(planilha, dados):
     data_original = dados.get("data", datetime.today().strftime("%d/%m/%Y"))
 
@@ -56,7 +113,7 @@ def registrar_movimentacao(planilha, dados):
     tipo = normalizar_tipo(dados.get("tipo", "gasto"))
 
     raw_valor = dados.get("valor_total", 0)
-    print(f"💰 5. Valor bruto recebido da IA: {raw_valor} (Tipo: {type(raw_valor)})")
+    logger.info("Valor recebido da IA para registro. tipo_python=%s", type(raw_valor).__name__)
     valor_total = float(raw_valor)
     if valor_total <= 0:
         raise ValueError("valor_total deve ser maior que zero")
@@ -70,7 +127,7 @@ def registrar_movimentacao(planilha, dados):
     valor_parcela = valor_total / total_parcelas
     valor_formatado = str(round(valor_parcela, 2)).replace(".", ",")
 
-    print(f"🚀 6. Preparando para salvar {total_parcelas} parcela(s)...")
+    logger.info("Preparando escrita na planilha. parcelas=%s tipo=%s categoria=%s", total_parcelas, tipo, categoria)
     linha_insercao = 2
 
     for i in range(total_parcelas):
@@ -81,9 +138,9 @@ def registrar_movimentacao(planilha, dados):
             else descricao_original
         )
         nova_linha = [data_parcela, tipo, valor_formatado, descricao_final, total_parcelas, categoria]
-        planilha.insert_row(nova_linha, index=linha_insercao)
+        inserir_linha_com_retry(planilha, nova_linha, linha_insercao)
         linha_insercao += 1
-        print(f"✅ Line {i + 1} salva!")
+        logger.info("Parcela salva na planilha. parcela_atual=%s total_parcelas=%s", i + 1, total_parcelas)
 
     if total_parcelas > 1:
         return f"✅ Registado!\nCompra de R$ {valor_total:.2f} ({categoria}) dividida em {total_parcelas}x lançada na planilha."
@@ -91,10 +148,10 @@ def registrar_movimentacao(planilha, dados):
 
 
 def consultar_gastos_mes(planilha, mes_alvo, ano_alvo):
-    print(f"🔍 5. Buscando gastos para o período: {mes_alvo}/{ano_alvo}")
+    logger.info("Buscando gastos para período. mes=%s ano=%s", mes_alvo, ano_alvo)
 
     todas_as_linhas = planilha.get_all_values()[1:]
-    print(f"📂 6. Total de linhas lidas na planilha: {len(todas_as_linhas)}")
+    logger.info("Linhas lidas da planilha. total_linhas=%s", len(todas_as_linhas))
 
     total_gastos = 0.0
     detalhes_gastos = []
