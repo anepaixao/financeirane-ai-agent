@@ -128,7 +128,7 @@ A variável `AUTHORIZED_CHAT_IDS` restringe quem pode usar o bot. Mesmo que outr
 .
 ├── main.py             # Maestro: escuta o Telegram e coordena os fluxos
 ├── config.py           # Carrega variáveis do .env e constantes do projeto
-├── gemini_service.py   # Cérebro: envia texto ao Gemini e retorna JSON estruturado
+├── ai_service.py       # Cérebro: envia texto ao Gemini e valida o JSON estruturado
 ├── sheets_service.py   # Memória: registra e consulta dados no Google Sheets
 ├── teste_gemini.py     # Script auxiliar para listar modelos Gemini disponíveis
 ├── requirements.txt    # Dependências do ambiente Python
@@ -242,6 +242,41 @@ venv/bin/python3 main.py
 ```
 
 Se tudo estiver configurado corretamente, o terminal exibirá mensagens indicando a conexão com o Google Sheets e que a Financeirane está online.
+
+### 8. Manter o bot em background com systemd
+
+Em produção, crie um serviço apontando para o Python do ambiente virtual e para o arquivo principal `main.py`:
+
+```ini
+[Unit]
+Description=Financeirane Telegram Bot
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/caminho/para/financeirane-ai-agent
+ExecStart=/caminho/para/financeirane-ai-agent/venv/bin/python3 /caminho/para/financeirane-ai-agent/main.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Depois de salvar o serviço em `/etc/systemd/system/financeirane.service`, execute:
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable financeirane
+sudo systemctl start financeirane
+sudo systemctl status financeirane
+```
+
+Para acompanhar os logs:
+
+```bash
+journalctl -u financeirane -f
+```
 
 ---
 
