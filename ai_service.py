@@ -6,6 +6,9 @@ from google import genai
 from google.genai import types
 
 from config import CATEGORIAS_PERMITIDAS, GEMINI_API_KEY
+from exceptions import InterpretacaoIAError
+from models import RegistroFinanceiro
+from validators import validar_registro
 
 
 client = genai.Client(api_key=GEMINI_API_KEY)
@@ -13,10 +16,6 @@ logger = logging.getLogger(__name__)
 
 CHAVES_REGISTRO = {"intencao", "data", "tipo", "valor_total", "descricao", "parcelas", "categoria"}
 CHAVES_CONSULTA = {"intencao", "mes", "ano"}
-
-
-class RespostaGeminiInvalidaError(Exception):
-    pass
 
 
 def montar_system_prompt(categorias):
@@ -56,33 +55,45 @@ def validar_resposta_gemini(conteudo):
     try:
         dados = json.loads(conteudo)
     except (TypeError, json.JSONDecodeError) as exc:
-        raise RespostaGeminiInvalidaError("Gemini retornou uma resposta que não é um JSON válido.") from exc
+        raise InterpretacaoIAError("Gemini retornou uma resposta que não é um JSON válido.") from exc
 
     if not isinstance(dados, dict):
-        raise RespostaGeminiInvalidaError("Gemini retornou JSON válido, mas não retornou um objeto.")
+        raise InterpretacaoIAError("Gemini retornou JSON válido, mas não retornou um objeto.")
 
     intencao = dados.get("intencao")
 
     if intencao == "registrar":
         chaves_recebidas = set(dados.keys())
         if chaves_recebidas != CHAVES_REGISTRO:
-            raise RespostaGeminiInvalidaError(
+            raise InterpretacaoIAError(
                 "Resposta de registro fora do padrão. "
                 f"Chaves esperadas: {sorted(CHAVES_REGISTRO)}. "
                 f"Chaves recebidas: {sorted(chaves_recebidas)}."
             )
 
         if not dados.get("categoria") or dados.get("valor_total") is None or not dados.get("descricao"):
-            raise RespostaGeminiInvalidaError(
+            raise InterpretacaoIAError(
                 "Resposta de registro incompleta. Campos obrigatórios: categoria, valor_total e descricao."
             )
 
-        return dados
+        try:
+            registro = RegistroFinanceiro(
+                data=dados["data"],
+                tipo=dados["tipo"],
+                valor_total=float(dados["valor_total"]),
+                descricao=dados["descricao"],
+                parcelas=int(dados["parcelas"]),
+                categoria=dados["categoria"],
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            raise InterpretacaoIAError("Resposta de registro não pôde ser convertida em RegistroFinanceiro.") from exc
+
+        return validar_registro(registro)
 
     if intencao == "consultar":
         chaves_recebidas = set(dados.keys())
         if chaves_recebidas != CHAVES_CONSULTA:
-            raise RespostaGeminiInvalidaError(
+            raise InterpretacaoIAError(
                 "Resposta de consulta fora do padrão. "
                 f"Chaves esperadas: {sorted(CHAVES_CONSULTA)}. "
                 f"Chaves recebidas: {sorted(chaves_recebidas)}."
@@ -90,7 +101,7 @@ def validar_resposta_gemini(conteudo):
 
         return dados
 
-    raise RespostaGeminiInvalidaError("Gemini retornou uma intenção desconhecida ou ausente.")
+    raise InterpretacaoIAError("Gemini retornou uma intenção desconhecida ou ausente.")
 
 
 def interpretar_mensagem(texto):
@@ -104,5 +115,8 @@ def interpretar_mensagem(texto):
         ),
     )
     dados = validar_resposta_gemini(response.text)
-    logger.info("Resposta da IA validada com sucesso. intencao=%s", dados.get("intencao"))
+    if isinstance(dados, RegistroFinanceiro):
+        logger.info("Resposta da IA validada com sucesso. intencao=registrar")
+    else:
+        logger.info("Resposta da IA validada com sucesso. intencao=%s", dados.get("intencao"))
     return dados

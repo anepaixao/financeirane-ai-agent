@@ -10,6 +10,7 @@ logger = logging.getLogger(__name__)
 
 from ai_service import interpretar_mensagem
 from config import AUTHORIZED_CHAT_IDS, MAX_MESSAGE_LENGTH, TELEGRAM_TOKEN
+from models import RegistroFinanceiro
 from sheets_service import conectar_planilha, consultar_gastos_mes, registrar_movimentacao
 
 
@@ -51,7 +52,7 @@ def responder_mensagem(message):
 
         dados = interpretar_mensagem(texto)
 
-        intencao = dados.get("intencao")
+        intencao = "registrar" if isinstance(dados, RegistroFinanceiro) else dados.get("intencao")
         logger.info("Intenção detectada pela IA. intencao=%s", intencao)
 
         if intencao == "registrar":

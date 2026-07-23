@@ -104,25 +104,25 @@ def inserir_linha_com_retry(planilha, linha, index):
 
 
 def registrar_movimentacao(planilha, dados):
-    data_original = dados.get("data", datetime.today().strftime("%d/%m/%Y"))
+    data_original = dados.data
 
     if "2023" in data_original or "2024" in data_original or "2025" in data_original:
         dia_mes = data_original[:6]
         data_original = f"{dia_mes}2026"
 
-    tipo = normalizar_tipo(dados.get("tipo", "gasto"))
+    tipo = dados.tipo
 
-    raw_valor = dados.get("valor_total", 0)
+    raw_valor = dados.valor_total
     logger.info("Valor recebido da IA para registro. tipo_python=%s", type(raw_valor).__name__)
     valor_total = float(raw_valor)
     if valor_total <= 0:
         raise ValueError("valor_total deve ser maior que zero")
 
-    descricao_original = texto_seguro_planilha(dados.get("descricao", ""))
-    total_parcelas = int(dados.get("parcelas", 1))
+    descricao_original = texto_seguro_planilha(dados.descricao)
+    total_parcelas = int(dados.parcelas)
     if total_parcelas < 1 or total_parcelas > MAX_PARCELAS:
         raise ValueError(f"parcelas deve estar entre 1 e {MAX_PARCELAS}")
-    categoria = normalizar_categoria(dados.get("categoria", "Outros"))
+    categoria = dados.categoria
 
     valor_parcela = valor_total / total_parcelas
     valor_formatado = str(round(valor_parcela, 2)).replace(".", ",")
