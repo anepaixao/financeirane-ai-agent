@@ -12,6 +12,8 @@ service-account*.json
 venv/
 .venv/
 __pycache__/
+**/__pycache__/
+**pycache**/
 *.pyc
 
 # Arquivos locais de editor/sistema
