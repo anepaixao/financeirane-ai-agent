@@ -1,6 +1,5 @@
 # IA / Gemini
 google-genai==2.6.0
-google-generativeai==0.8.6
 
 # Telegram
 pyTelegramBotAPI==4.33.0
