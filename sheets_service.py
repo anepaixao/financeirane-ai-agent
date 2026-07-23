@@ -74,24 +74,24 @@ def erro_transiente_google(erro):
     return "timeout" in nome_erro or "connection" in nome_erro
 
 
-def inserir_linha_com_retry(planilha, linha, index):
+def inserir_linhas_com_retry(planilha, linhas, index):
     ultima_excecao = None
 
     for tentativa in range(1, MAX_TENTATIVAS_ESCRITA + 1):
         try:
-            planilha.insert_row(linha, index=index)
+            planilha.insert_rows(linhas, row=index)
             return
         except Exception as exc:
             ultima_excecao = exc
 
             if not erro_transiente_google(exc) or tentativa == MAX_TENTATIVAS_ESCRITA:
                 raise PlanilhaEscritaError(
-                    f"Falha ao escrever na planilha após {tentativa} tentativa(s)."
+                    f"Falha ao escrever lote na planilha após {tentativa} tentativa(s)."
                 ) from exc
 
             tempo_espera = TEMPO_ESPERA_INICIAL * (2 ** (tentativa - 1))
             logger.warning(
-                "Falha temporária ao escrever no Google Sheets. "
+                "Falha temporária ao escrever lote no Google Sheets. "
                 "tentativa=%s/%s nova_tentativa_em=%ss erro=%s",
                 tentativa,
                 MAX_TENTATIVAS_ESCRITA,
@@ -100,7 +100,7 @@ def inserir_linha_com_retry(planilha, linha, index):
             )
             time.sleep(tempo_espera)
 
-    raise PlanilhaEscritaError("Falha inesperada ao escrever na planilha.") from ultima_excecao
+    raise PlanilhaEscritaError("Falha inesperada ao escrever lote na planilha.") from ultima_excecao
 
 
 def registrar_movimentacao(planilha, dados):
@@ -129,6 +129,7 @@ def registrar_movimentacao(planilha, dados):
 
     logger.info("Preparando escrita na planilha. parcelas=%s tipo=%s categoria=%s", total_parcelas, tipo, categoria)
     linha_insercao = 2
+    novas_linhas = []
 
     for i in range(total_parcelas):
         data_parcela = calcular_data_parcela(data_original, i)
@@ -137,10 +138,10 @@ def registrar_movimentacao(planilha, dados):
             if total_parcelas > 1
             else descricao_original
         )
-        nova_linha = [data_parcela, tipo, valor_formatado, descricao_final, total_parcelas, categoria]
-        inserir_linha_com_retry(planilha, nova_linha, linha_insercao)
-        linha_insercao += 1
-        logger.info("Parcela salva na planilha. parcela_atual=%s total_parcelas=%s", i + 1, total_parcelas)
+        novas_linhas.append([data_parcela, tipo, valor_formatado, descricao_final, total_parcelas, categoria])
+
+    inserir_linhas_com_retry(planilha, novas_linhas, linha_insercao)
+    logger.info("Movimentação salva na planilha. total_linhas=%s", len(novas_linhas))
 
     if total_parcelas > 1:
         return f"✅ Registado!\nCompra de R$ {valor_total:.2f} ({categoria}) dividida em {total_parcelas}x lançada na planilha."
