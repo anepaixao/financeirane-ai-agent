@@ -1,12 +1,24 @@
-# Financeirane AI Agent
+# FinanceirAne AI Agent
 
-Financeirane AI Agent é um bot financeiro pessoal para Telegram. Ele interpreta mensagens em linguagem natural com Gemini, valida os dados no domínio da aplicação e registra ou consulta movimentações em uma planilha do Google Sheets.
+**Versão atual:** v1.0.0 — MVP concluído
+**Deploy:** executando em uma instância Oracle Cloud Infrastructure (OCI) para uso pessoal.
+
+FinanceirAne AI Agent é um bot financeiro pessoal para Telegram. Ele interpreta mensagens em linguagem natural com Gemini, valida os dados no domínio da aplicação e registra ou consulta movimentações em uma planilha do Google Sheets.
 
 O sistema serve para registro e consulta de movimentações financeiras pessoais. Ele não fornece aconselhamento financeiro, recomendação de investimento, análise patrimonial ou orientação profissional.
 
+As mensagens, valores, IDs e credenciais apresentados nesta documentação são fictícios e servem apenas como exemplos.
+
+## Status Da Versão
+
+- Versão atual: V1.0.0.
+- Status: MVP concluído.
+- Foco: uso pessoal e portfólio.
+- Próxima etapa: V2.
+
 ## Problema
 
-Registrar gastos manualmente em planilhas é trabalhoso e fácil de esquecer. A Financeirane reduz esse atrito: a pessoa envia uma frase comum pelo Telegram e o agente transforma a mensagem em um registro estruturado, validado e persistido.
+Registrar gastos manualmente em planilhas é trabalhoso e fácil de esquecer. A FinanceirAne reduz esse atrito: a pessoa envia uma frase comum pelo Telegram e o agente transforma a mensagem em um registro estruturado, validado e persistido.
 
 ## Funcionalidades
 
@@ -46,7 +58,19 @@ Google Sheets
 
 `exceptions.py` centraliza exceções customizadas, como erros de interpretação da IA e entrada inválida.
 
-`sheets_service.py` conecta ao Google Sheets, consulta registros e grava movimentações. Para compras parceladas, monta todas as linhas em memória e usa uma única chamada `insert_rows` com retry envolvendo o lote inteiro.
+`sheets_service.py` conecta ao Google Sheets, consulta registros e grava movimentações. Para compras parceladas, converte o valor total para centavos inteiros, distribui os centavos restantes entre as primeiras parcelas, monta todas as linhas em memória e usa uma única chamada `insert_rows` com retry envolvendo o lote inteiro. Assim, a soma das parcelas é exatamente igual ao valor total informado.
+
+## Arquitetura de Soluções
+
+Usuário
+    │
+Telegram Bot
+    │
+FinanceirAne
+(Oracle Cloud / Ubuntu)
+    │
+ ├── Google Gemini API
+ └── Google Sheets API
 
 ## Tecnologias
 
@@ -56,6 +80,17 @@ Google Sheets
 - Google Sheets via `gspread`
 - Google Auth
 - `python-dotenv`
+
+| Camada | Tecnologia |
+|--------|------------|
+| Linguagem | Python 3.12 |
+| Interface | Telegram Bot API |
+| IA | Google Gemini |
+| Persistência | Google Sheets |
+| Infraestrutura | Oracle Cloud Infrastructure (OCI) |
+| Sistema Operacional | Ubuntu Linux |
+| Configuração | python-dotenv |
+
 
 ## Estrutura
 
@@ -76,6 +111,22 @@ Google Sheets
 ├── LICENSE
 └── README.md
 ```
+
+## Infraestrutura
+
+A FinanceirAne pode ser executada localmente durante o desenvolvimento ou permanecer ativa em uma instância Linux na Oracle Cloud Infrastructure (OCI).
+
+Ambiente utilizado:
+
+- Oracle Cloud Infrastructure (OCI)
+- Ubuntu Linux
+- Python 3.12
+- Ambiente virtual (`venv`)
+- Execução contínua do bot Telegram
+- Google Sheets como camada de persistência
+- Google Gemini para interpretação das mensagens
+
+As credenciais permanecem armazenadas localmente na instância e não fazem parte do repositório.
 
 ## Pré-Requisitos
 
@@ -105,7 +156,7 @@ source venv/bin/activate
 Instale as dependências:
 
 ```bash
-pip install -r requirements.txt
+python -m pip install -r requirements.txt
 ```
 
 ## Variáveis De Ambiente
@@ -145,18 +196,32 @@ O formato de data usado pelo projeto é `DD/MM/AAAA`.
 
 Os registros novos são inseridos a partir da linha 2. Em compras parceladas, cada parcela vira uma linha, com descrição indicando `Parcela 1/N`, `Parcela 2/N` e assim por diante.
 
+Para evitar erros de ponto flutuante, o valor total é convertido para centavos inteiros antes da divisão. Os centavos restantes são distribuídos entre as primeiras parcelas. Por exemplo, R$ 100,00 em 3 parcelas gera `33,34`, `33,33` e `33,33`, mantendo a soma exatamente igual a R$ 100,00.
+
+As linhas de uma compra parcelada são gravadas em uma única chamada `insert_rows`, reduzindo o risco de gravação parcial causada por loops de escrita na aplicação.
+
 ## Execução
 
 Com o ambiente virtual ativo:
 
 ```bash
-python3 main.py
+python main.py
 ```
 
 Para testar a chave Gemini e listar modelos disponíveis:
 
 ```bash
-python3 scripts/teste_gemini.py
+python scripts/teste_gemini.py
+```
+
+## Verificações Locais
+
+```bash
+python -m compileall .
+```
+
+```bash
+python -m py_compile main.py ai_service.py sheets_service.py models.py validators.py exceptions.py
 ```
 
 ## Exemplos De Mensagens
@@ -215,12 +280,14 @@ O `.gitignore` já cobre arquivos sensíveis e artefatos locais comuns, incluind
 
 ## Próximos Passos
 
-- Criar testes unitários para validações e serviços.
-- Melhorar mensagens de erro para o usuário final.
-- Adicionar relatórios por categoria.
-- Adicionar resumos automáticos.
-- Suportar múltiplas abas ou múltiplos usuários.
-- Avaliar persistência transacional em banco de dados dedicado.
+- Testes automatizados com pytest.
+- Integração contínua com GitHub Actions.
+- Tratamento específico de exceções.
+- Relatórios e análises financeiras.
+- Dashboard interativo.
+- Melhorias na experiência do Telegram.
+- Avaliação futura de banco de dados relacional.
+- Monitoramento e observabilidade da instância Oracle Cloud.
 
 ## Licença
 
