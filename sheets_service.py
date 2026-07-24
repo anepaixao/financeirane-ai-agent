@@ -2,6 +2,7 @@ import calendar
 import logging
 import time
 from datetime import datetime
+from decimal import Decimal, ROUND_HALF_UP
 
 import gspread
 from gspread.exceptions import APIError
@@ -18,6 +19,7 @@ MAX_TENTATIVAS_ESCRITA = 3
 TEMPO_ESPERA_INICIAL = 2
 STATUS_TRANSIENTES = {408, 429, 500, 502, 503, 504}
 logger = logging.getLogger(__name__)
+CENTAVOS_POR_REAL = Decimal("100")
 
 
 class PlanilhaEscritaError(Exception):
@@ -47,6 +49,15 @@ def texto_seguro_planilha(valor):
     if texto.startswith(("=", "+", "-", "@")):
         return f"'{texto}"
     return texto
+
+
+def valor_em_centavos(valor):
+    return int((Decimal(str(valor)) * CENTAVOS_POR_REAL).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+
+
+def formatar_centavos(valor_centavos):
+    reais, centavos = divmod(valor_centavos, 100)
+    return f"{reais},{centavos:02d}"
 
 
 def normalizar_categoria(categoria):
@@ -106,10 +117,6 @@ def inserir_linhas_com_retry(planilha, linhas, index):
 def registrar_movimentacao(planilha, dados):
     data_original = dados.data
 
-    if "2023" in data_original or "2024" in data_original or "2025" in data_original:
-        dia_mes = data_original[:6]
-        data_original = f"{dia_mes}2026"
-
     tipo = dados.tipo
 
     raw_valor = dados.valor_total
@@ -124,14 +131,16 @@ def registrar_movimentacao(planilha, dados):
         raise ValueError(f"parcelas deve estar entre 1 e {MAX_PARCELAS}")
     categoria = dados.categoria
 
-    valor_parcela = valor_total / total_parcelas
-    valor_formatado = str(round(valor_parcela, 2)).replace(".", ",")
+    valor_total_centavos = valor_em_centavos(raw_valor)
+    valor_base_centavos, centavos_restantes = divmod(valor_total_centavos, total_parcelas)
 
     logger.info("Preparando escrita na planilha. parcelas=%s tipo=%s categoria=%s", total_parcelas, tipo, categoria)
     linha_insercao = 2
     novas_linhas = []
 
     for i in range(total_parcelas):
+        valor_parcela_centavos = valor_base_centavos + (1 if i < centavos_restantes else 0)
+        valor_formatado = formatar_centavos(valor_parcela_centavos)
         data_parcela = calcular_data_parcela(data_original, i)
         descricao_final = (
             f"{descricao_original} (Parcela {i + 1}/{total_parcelas})"
