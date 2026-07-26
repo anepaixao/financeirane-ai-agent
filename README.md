@@ -313,6 +313,22 @@ quanto gastei em junho de 2026?
 
 A base de testes usa pytest.
 
+Execute as verificações de lint e formatação:
+
+```bash
+python -m ruff check .
+```
+
+```bash
+python -m ruff format --check .
+```
+
+Formate os arquivos Python localmente quando necessário:
+
+```bash
+python -m ruff format .
+```
+
 Execute a suíte completa:
 
 ```bash
@@ -337,6 +353,8 @@ python -m py_compile main.py ai_service.py sheets_service.py models.py validator
 | `tests/test_main_handlers.py` | Fluxo de autorização e respostas iniciais do Telegram. |
 | `tests/test_sheets_utils.py` | Utilitários puros de datas, valores, texto e normalização. |
 | `tests/test_validators.py` | Validações de domínio e `RegistroFinanceiro`. |
+
+O CI executa `ruff check .`, `ruff format --check .` e `pytest`.
 
 ## 🔒 Como funciona a autorização por `AUTHORIZED_CHAT_IDS`
 

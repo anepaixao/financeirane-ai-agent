@@ -23,7 +23,9 @@ def registrar_handlers(bot, planilha):
         user_id = getattr(getattr(message, "from_user", None), "id", None)
 
         if user_id not in AUTHORIZED_CHAT_IDS:
-            logger.warning("Mensagem ignorada de usuário não autorizado. user_id=%s", user_id)
+            logger.warning(
+                "Mensagem ignorada de usuário não autorizado. user_id=%s", user_id
+            )
             return
 
         if not texto:
@@ -39,7 +41,9 @@ def registrar_handlers(bot, planilha):
             return
 
         if len(texto) > MAX_MESSAGE_LENGTH:
-            bot.send_message(chat_id, "Mensagem muito longa. Envie um pedido mais curto.")
+            bot.send_message(
+                chat_id, "Mensagem muito longa. Envie um pedido mais curto."
+            )
             return
 
         bot.send_message(chat_id, "⏳ A processar...")
@@ -49,7 +53,11 @@ def registrar_handlers(bot, planilha):
 
             dados = interpretar_mensagem(texto)
 
-            intencao = "registrar" if isinstance(dados, RegistroFinanceiro) else dados.get("intencao")
+            intencao = (
+                "registrar"
+                if isinstance(dados, RegistroFinanceiro)
+                else dados.get("intencao")
+            )
             logger.info("Intenção detectada pela IA. intencao=%s", intencao)
 
             if intencao == "registrar":
@@ -59,12 +67,17 @@ def registrar_handlers(bot, planilha):
                 return
 
             if intencao == "consultar":
-                resposta = consultar_gastos_mes(planilha, dados.get("mes"), dados.get("ano"))
+                resposta = consultar_gastos_mes(
+                    planilha, dados.get("mes"), dados.get("ano")
+                )
                 bot.send_message(chat_id, resposta, parse_mode="Markdown")
                 logger.info("Fluxo de consulta concluído com sucesso.")
                 return
 
-            bot.send_message(chat_id, "Não consegui entender se você quer registrar ou consultar uma informação.")
+            bot.send_message(
+                chat_id,
+                "Não consegui entender se você quer registrar ou consultar uma informação.",
+            )
 
         except Exception:
             bot.send_message(chat_id, "Ops, ocorreu um erro ao processar o seu pedido.")

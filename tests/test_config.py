@@ -28,33 +28,25 @@ def test_parse_authorized_chat_ids_converte_um_id(config_module):
 
 
 def test_parse_authorized_chat_ids_converte_varios_ids(config_module):
-    resultado = config_module.parse_authorized_chat_ids(
-        "123456789,987654321"
-    )
+    resultado = config_module.parse_authorized_chat_ids("123456789,987654321")
 
     assert resultado == {123456789, 987654321}
 
 
 def test_parse_authorized_chat_ids_ignora_espacos(config_module):
-    resultado = config_module.parse_authorized_chat_ids(
-        " 123456789 , 987654321 "
-    )
+    resultado = config_module.parse_authorized_chat_ids(" 123456789 , 987654321 ")
 
     assert resultado == {123456789, 987654321}
 
 
 def test_parse_authorized_chat_ids_elimina_ids_duplicados(config_module):
-    resultado = config_module.parse_authorized_chat_ids(
-        "123456789,123456789"
-    )
+    resultado = config_module.parse_authorized_chat_ids("123456789,123456789")
 
     assert resultado == {123456789}
 
 
 def test_parse_authorized_chat_ids_ignora_itens_vazios(config_module):
-    resultado = config_module.parse_authorized_chat_ids(
-        "123456789,, ,987654321,"
-    )
+    resultado = config_module.parse_authorized_chat_ids("123456789,, ,987654321,")
 
     assert resultado == {123456789, 987654321}
 

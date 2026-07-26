@@ -4,7 +4,6 @@ from unittest.mock import Mock, patch
 
 import main
 
-
 AUTHORIZED_USER_ID = 123456789
 CHAT_ID = 987654321
 MAX_MESSAGE_LENGTH = 10
@@ -49,7 +48,9 @@ def preparar_handler():
     }
 
     modulos = {
-        "ai_service": criar_modulo("ai_service", interpretar_mensagem=dependencias["interpretar_mensagem"]),
+        "ai_service": criar_modulo(
+            "ai_service", interpretar_mensagem=dependencias["interpretar_mensagem"]
+        ),
         "config": criar_modulo(
             "config",
             AUTHORIZED_CHAT_IDS={AUTHORIZED_USER_ID},
@@ -101,7 +102,9 @@ def test_mensagem_vazia_de_usuario_autorizado_envia_aviso():
 
     bot.handler(criar_mensagem(""))
 
-    bot.send_message.assert_called_once_with(CHAT_ID, "Envie uma mensagem de texto para eu processar.")
+    bot.send_message.assert_called_once_with(
+        CHAT_ID, "Envie uma mensagem de texto para eu processar."
+    )
     assert_servicos_nao_foram_chamados(dependencias)
 
 
@@ -123,5 +126,7 @@ def test_mensagem_acima_do_limite_envia_aviso():
 
     bot.handler(criar_mensagem("x" * (MAX_MESSAGE_LENGTH + 1)))
 
-    bot.send_message.assert_called_once_with(CHAT_ID, "Mensagem muito longa. Envie um pedido mais curto.")
+    bot.send_message.assert_called_once_with(
+        CHAT_ID, "Mensagem muito longa. Envie um pedido mais curto."
+    )
     assert_servicos_nao_foram_chamados(dependencias)
