@@ -44,7 +44,9 @@ def validar_parcelas(parcelas):
         raise EntradaInvalidaError("Parcelas deve ser maior ou igual a 1.")
 
     if parcelas > MAX_PARCELAS:
-        raise EntradaInvalidaError(f"Parcelas deve ser menor ou igual a {MAX_PARCELAS}.")
+        raise EntradaInvalidaError(
+            f"Parcelas deve ser menor ou igual a {MAX_PARCELAS}."
+        )
 
 
 def validar_descricao(descricao):
@@ -56,7 +58,9 @@ def validar_descricao(descricao):
         raise EntradaInvalidaError("Descrição não pode ser vazia.")
 
     if len(descricao_limpa) > MAX_DESCRICAO:
-        raise EntradaInvalidaError(f"Descrição deve ter no máximo {MAX_DESCRICAO} caracteres.")
+        raise EntradaInvalidaError(
+            f"Descrição deve ter no máximo {MAX_DESCRICAO} caracteres."
+        )
 
 
 def validar_registro(registro: RegistroFinanceiro):
