@@ -2,7 +2,7 @@ import calendar
 import logging
 import time
 from datetime import datetime
-from decimal import Decimal, ROUND_HALF_UP
+from decimal import ROUND_HALF_UP, Decimal
 
 import gspread
 from gspread.exceptions import APIError
@@ -52,7 +52,11 @@ def texto_seguro_planilha(valor):
 
 
 def valor_em_centavos(valor):
-    return int((Decimal(str(valor)) * CENTAVOS_POR_REAL).quantize(Decimal("1"), rounding=ROUND_HALF_UP))
+    return int(
+        (Decimal(str(valor)) * CENTAVOS_POR_REAL).quantize(
+            Decimal("1"), rounding=ROUND_HALF_UP
+        )
+    )
 
 
 def formatar_centavos(valor_centavos):
@@ -111,7 +115,9 @@ def inserir_linhas_com_retry(planilha, linhas, index):
             )
             time.sleep(tempo_espera)
 
-    raise PlanilhaEscritaError("Falha inesperada ao escrever lote na planilha.") from ultima_excecao
+    raise PlanilhaEscritaError(
+        "Falha inesperada ao escrever lote na planilha."
+    ) from ultima_excecao
 
 
 def registrar_movimentacao(planilha, dados):
@@ -120,7 +126,9 @@ def registrar_movimentacao(planilha, dados):
     tipo = dados.tipo
 
     raw_valor = dados.valor_total
-    logger.info("Valor recebido da IA para registro. tipo_python=%s", type(raw_valor).__name__)
+    logger.info(
+        "Valor recebido da IA para registro. tipo_python=%s", type(raw_valor).__name__
+    )
     valor_total = float(raw_valor)
     if valor_total <= 0:
         raise ValueError("valor_total deve ser maior que zero")
@@ -132,14 +140,23 @@ def registrar_movimentacao(planilha, dados):
     categoria = dados.categoria
 
     valor_total_centavos = valor_em_centavos(raw_valor)
-    valor_base_centavos, centavos_restantes = divmod(valor_total_centavos, total_parcelas)
+    valor_base_centavos, centavos_restantes = divmod(
+        valor_total_centavos, total_parcelas
+    )
 
-    logger.info("Preparando escrita na planilha. parcelas=%s tipo=%s categoria=%s", total_parcelas, tipo, categoria)
+    logger.info(
+        "Preparando escrita na planilha. parcelas=%s tipo=%s categoria=%s",
+        total_parcelas,
+        tipo,
+        categoria,
+    )
     linha_insercao = 2
     novas_linhas = []
 
     for i in range(total_parcelas):
-        valor_parcela_centavos = valor_base_centavos + (1 if i < centavos_restantes else 0)
+        valor_parcela_centavos = valor_base_centavos + (
+            1 if i < centavos_restantes else 0
+        )
         valor_formatado = formatar_centavos(valor_parcela_centavos)
         data_parcela = calcular_data_parcela(data_original, i)
         descricao_final = (
@@ -147,7 +164,16 @@ def registrar_movimentacao(planilha, dados):
             if total_parcelas > 1
             else descricao_original
         )
-        novas_linhas.append([data_parcela, tipo, valor_formatado, descricao_final, total_parcelas, categoria])
+        novas_linhas.append(
+            [
+                data_parcela,
+                tipo,
+                valor_formatado,
+                descricao_final,
+                total_parcelas,
+                categoria,
+            ]
+        )
 
     inserir_linhas_com_retry(planilha, novas_linhas, linha_insercao)
     logger.info("Movimentação salva na planilha. total_linhas=%s", len(novas_linhas))
@@ -182,7 +208,9 @@ def consultar_gastos_mes(planilha, mes_alvo, ano_alvo):
                 if tipo_linha == "gasto":
                     valor_num = float(valor_linha.replace(",", "."))
                     total_gastos += valor_num
-                    detalhes_gastos.append(f"• [{cat_linha}] {desc_linha}: R$ {valor_num:.2f}")
+                    detalhes_gastos.append(
+                        f"• [{cat_linha}] {desc_linha}: R$ {valor_num:.2f}"
+                    )
         except Exception:
             continue
 

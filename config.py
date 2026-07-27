@@ -3,7 +3,6 @@ import os
 
 from dotenv import load_dotenv
 
-
 load_dotenv()
 logger = logging.getLogger(__name__)
 
@@ -38,7 +37,9 @@ def parse_authorized_chat_ids(raw_chat_ids):
             if chat_id.strip()
         }
     except ValueError as exc:
-        raise RuntimeError("AUTHORIZED_CHAT_IDS deve conter apenas IDs numéricos separados por vírgula") from exc
+        raise RuntimeError(
+            "AUTHORIZED_CHAT_IDS deve conter apenas IDs numéricos separados por vírgula"
+        ) from exc
 
 
 def validate_required_settings():
@@ -53,4 +54,6 @@ validate_required_settings()
 AUTHORIZED_CHAT_IDS = parse_authorized_chat_ids(AUTHORIZED_CHAT_IDS_RAW)
 
 if not AUTHORIZED_CHAT_IDS:
-    logger.warning("AUTHORIZED_CHAT_IDS não configurado. O bot ignorará mensagens de todos os usuários.")
+    logger.warning(
+        "AUTHORIZED_CHAT_IDS não configurado. O bot ignorará mensagens de todos os usuários."
+    )

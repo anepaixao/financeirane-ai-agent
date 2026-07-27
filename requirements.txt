@@ -11,3 +11,7 @@ google-auth-oauthlib==1.4.0
 
 # Variaveis de ambiente
 python-dotenv==1.2.2
+
+pytest==9.1.1
+ruff==0.14.8
+pre-commit==4.3.0

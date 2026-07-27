@@ -10,11 +10,18 @@ from exceptions import InterpretacaoIAError
 from models import RegistroFinanceiro
 from validators import validar_registro
 
-
 client = genai.Client(api_key=GEMINI_API_KEY)
 logger = logging.getLogger(__name__)
 
-CHAVES_REGISTRO = {"intencao", "data", "tipo", "valor_total", "descricao", "parcelas", "categoria"}
+CHAVES_REGISTRO = {
+    "intencao",
+    "data",
+    "tipo",
+    "valor_total",
+    "descricao",
+    "parcelas",
+    "categoria",
+}
 CHAVES_CONSULTA = {"intencao", "mes", "ano"}
 
 
@@ -55,10 +62,14 @@ def validar_resposta_gemini(conteudo):
     try:
         dados = json.loads(conteudo)
     except (TypeError, json.JSONDecodeError) as exc:
-        raise InterpretacaoIAError("Gemini retornou uma resposta que não é um JSON válido.") from exc
+        raise InterpretacaoIAError(
+            "Gemini retornou uma resposta que não é um JSON válido."
+        ) from exc
 
     if not isinstance(dados, dict):
-        raise InterpretacaoIAError("Gemini retornou JSON válido, mas não retornou um objeto.")
+        raise InterpretacaoIAError(
+            "Gemini retornou JSON válido, mas não retornou um objeto."
+        )
 
     intencao = dados.get("intencao")
 
@@ -71,7 +82,11 @@ def validar_resposta_gemini(conteudo):
                 f"Chaves recebidas: {sorted(chaves_recebidas)}."
             )
 
-        if not dados.get("categoria") or dados.get("valor_total") is None or not dados.get("descricao"):
+        if (
+            not dados.get("categoria")
+            or dados.get("valor_total") is None
+            or not dados.get("descricao")
+        ):
             raise InterpretacaoIAError(
                 "Resposta de registro incompleta. Campos obrigatórios: categoria, valor_total e descricao."
             )
@@ -86,7 +101,9 @@ def validar_resposta_gemini(conteudo):
                 categoria=dados["categoria"],
             )
         except (KeyError, TypeError, ValueError) as exc:
-            raise InterpretacaoIAError("Resposta de registro não pôde ser convertida em RegistroFinanceiro.") from exc
+            raise InterpretacaoIAError(
+                "Resposta de registro não pôde ser convertida em RegistroFinanceiro."
+            ) from exc
 
         return validar_registro(registro)
 
@@ -118,5 +135,7 @@ def interpretar_mensagem(texto):
     if isinstance(dados, RegistroFinanceiro):
         logger.info("Resposta da IA validada com sucesso. intencao=registrar")
     else:
-        logger.info("Resposta da IA validada com sucesso. intencao=%s", dados.get("intencao"))
+        logger.info(
+            "Resposta da IA validada com sucesso. intencao=%s", dados.get("intencao")
+        )
     return dados
