@@ -7,6 +7,7 @@ from google.genai import types
 
 from config import CATEGORIAS_PERMITIDAS, GEMINI_API_KEY
 from exceptions import InterpretacaoIAError
+from logging_config import duracao_ms, iniciar_medicao
 from models import RegistroFinanceiro
 from validators import validar_registro
 
@@ -122,20 +123,40 @@ def validar_resposta_gemini(conteudo):
 
 
 def interpretar_mensagem(texto):
-    logger.info("Enviando mensagem autorizada para interpretação da IA.")
-    response = client.models.generate_content(
-        model="gemini-2.5-flash",
-        contents=texto,
-        config=types.GenerateContentConfig(
-            system_instruction=montar_system_prompt(CATEGORIAS_PERMITIDAS),
-            response_mime_type="application/json",
-        ),
+    inicio = iniciar_medicao()
+    modelo = "gemini-2.5-flash"
+    logger.info(
+        "Enviando mensagem autorizada para interpretação da IA. operacao=gemini_generate modelo=%s",
+        modelo,
     )
-    dados = validar_resposta_gemini(response.text)
+    try:
+        response = client.models.generate_content(
+            model=modelo,
+            contents=texto,
+            config=types.GenerateContentConfig(
+                system_instruction=montar_system_prompt(CATEGORIAS_PERMITIDAS),
+                response_mime_type="application/json",
+            ),
+        )
+        dados = validar_resposta_gemini(response.text)
+    except Exception as exc:
+        logger.exception(
+            "Erro ao interpretar mensagem com Gemini. operacao=gemini_generate modelo=%s erro=%s duracao_ms=%s",
+            modelo,
+            exc.__class__.__name__,
+            duracao_ms(inicio),
+        )
+        raise
+
     if isinstance(dados, RegistroFinanceiro):
-        logger.info("Resposta da IA validada com sucesso. intencao=registrar")
+        logger.info(
+            "Resposta da IA validada com sucesso. operacao=validar_resposta_gemini intencao=registrar duracao_ms=%s",
+            duracao_ms(inicio),
+        )
     else:
         logger.info(
-            "Resposta da IA validada com sucesso. intencao=%s", dados.get("intencao")
+            "Resposta da IA validada com sucesso. operacao=validar_resposta_gemini intencao=%s duracao_ms=%s",
+            dados.get("intencao"),
+            duracao_ms(inicio),
         )
     return dados

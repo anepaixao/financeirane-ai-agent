@@ -183,6 +183,7 @@ GEMINI_API_KEY=gemini_api_key_ficticia
 AUTHORIZED_CHAT_IDS=123456789,987654321
 GOOGLE_CREDENTIALS_FILE=credenciais.json
 SPREADSHEET_NAME=Financeirane
+LOG_LEVEL=INFO
 ```
 
 | Variável | Obrigatória | Descrição |
@@ -192,6 +193,7 @@ SPREADSHEET_NAME=Financeirane
 | `AUTHORIZED_CHAT_IDS` | Recomendado | IDs autorizados a usar o bot, separados por vírgula. |
 | `GOOGLE_CREDENTIALS_FILE` | Não | Caminho do JSON da conta de serviço. Padrão: `credenciais.json`. |
 | `SPREADSHEET_NAME` | Não | Nome da planilha. Padrão: `Financeirane`. |
+| `LOG_LEVEL` | Não | Nível de log. Aceita `DEBUG`, `INFO`, `WARNING`, `ERROR` e `CRITICAL`. Padrão: `INFO`. |
 
 Nunca use valores reais no `.env.example`. O arquivo `.env` local não deve ser versionado.
 
@@ -351,10 +353,6 @@ python -m pytest -v
 
 A execução normal da suíte já gera a cobertura automaticamente:
 
-```bash
-python -m pytest -v
-```
-
 A configuração do projeto já gera relatório no terminal com linhas não cobertas e também o relatório HTML em `htmlcov/`.
 
 Para abrir o relatório HTML:
@@ -380,6 +378,7 @@ python -m py_compile main.py ai_service.py sheets_service.py models.py validator
 | Arquivo de teste | Cobertura principal |
 | --- | --- |
 | `tests/test_config.py` | Parsing de `AUTHORIZED_CHAT_IDS`. |
+| `tests/test_logging_config.py` | Configuração de logs, nível por ambiente, mascaramento e duração. |
 | `tests/test_main_handlers.py` | Fluxo de autorização e respostas iniciais do Telegram. |
 | `tests/test_sheets_utils.py` | Utilitários puros de datas, valores, texto e normalização. |
 | `tests/test_validators.py` | Validações de domínio e `RegistroFinanceiro`. |
@@ -432,6 +431,32 @@ Se `AUTHORIZED_CHAT_IDS` estiver vazio, o bot registra um aviso em log e ignora 
 - Evite alterar regras de negócio junto com mudanças de documentação.
 
 O `.gitignore` já cobre arquivos sensíveis e artefatos locais comuns, incluindo `.env`, `credenciais.json`, `venv/`, caches Python, `.pytest_cache/` e arquivos `.pyc`.
+
+## 📋 Logs e observabilidade
+
+A FinanceirAne usa o módulo `logging` da biblioteca padrão. Os logs são enviados para stdout/stderr, o que funciona bem com `systemd` e `journald` em uma instância Ubuntu na Oracle Cloud Infrastructure.
+
+Configure o nível de log pelo `.env`:
+
+```env
+LOG_LEVEL=INFO
+```
+
+Valores aceitos:
+
+```text
+DEBUG, INFO, WARNING, ERROR, CRITICAL
+```
+
+Valores inválidos usam `INFO` como fallback seguro.
+
+Política de logs:
+
+- registrar módulo, operação, intenção, duração em milissegundos e tipo da exceção quando útil;
+- registrar quantidades técnicas, como número de parcelas ou linhas processadas;
+- mascarar identificadores de usuário quando forem necessários para diagnóstico;
+- preservar stack trace em erros inesperados com `logger.exception`;
+- não registrar mensagens completas do usuário, descrições financeiras, valores financeiros, tokens, chaves, credenciais, resposta bruta do Gemini ou conteúdo completo da planilha.
 
 ## ⚠️ Limitações atuais
 
