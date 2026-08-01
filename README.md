@@ -167,6 +167,12 @@ Instale as dependências:
 python -m pip install -r requirements.txt
 ```
 
+Instale os hooks de pre-commit:
+
+```bash
+python -m pre_commit install
+```
+
 ## 🔐 Configuração do `.env`
 
 Crie um arquivo `.env` na raiz do projeto usando `.env.example` como referência:
@@ -328,6 +334,14 @@ Formate os arquivos Python localmente quando necessário:
 ```bash
 python -m ruff format .
 ```
+
+Execute os hooks de pre-commit em todos os arquivos:
+
+```bash
+python -m pre_commit run --all-files
+```
+
+Os hooks executam lint e verificação/formatação com Ruff antes do commit. Eles não executam pytest; a suíte completa continua rodando manualmente e na CI.
 
 Execute a suíte completa:
 
