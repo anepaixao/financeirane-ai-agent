@@ -335,6 +335,22 @@ Execute a suíte completa:
 python -m pytest -v
 ```
 
+A execução normal da suíte já gera a cobertura automaticamente:
+
+```bash
+python -m pytest -v
+```
+
+A configuração do projeto já gera relatório no terminal com linhas não cobertas e também o relatório HTML em `htmlcov/`.
+
+Para abrir o relatório HTML:
+
+```bash
+xdg-open htmlcov/index.html
+```
+
+Se preferir, abra manualmente o arquivo `htmlcov/index.html` no navegador.
+
 Execute verificações rápidas de compilação:
 
 ```bash
