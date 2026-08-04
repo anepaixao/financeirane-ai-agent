@@ -1,3 +1,4 @@
+import logging
 import sys
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
@@ -6,7 +7,7 @@ import main
 
 AUTHORIZED_USER_ID = 123456789
 CHAT_ID = 987654321
-MAX_MESSAGE_LENGTH = 10
+MAX_MESSAGE_LENGTH = 100
 
 
 class FakeBot:
@@ -130,3 +131,18 @@ def test_mensagem_acima_do_limite_envia_aviso():
         CHAT_ID, "Mensagem muito longa. Envie um pedido mais curto."
     )
     assert_servicos_nao_foram_chamados(dependencias)
+
+
+def test_logs_do_handler_nao_contem_mensagem_financeira_nem_valor(caplog):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake()
+    dependencias["registrar_movimentacao"].return_value = "Registrado"
+    texto_mensagem = "gastei 987654321 no mercado secreto"
+
+    with caplog.at_level(logging.INFO):
+        bot.handler(criar_mensagem(texto_mensagem))
+
+    assert texto_mensagem not in caplog.text
+    assert "987654321" not in caplog.text
+    dependencias["registrar_movimentacao"].assert_called_once()
+    dependencias["consultar_gastos_mes"].assert_not_called()
