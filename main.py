@@ -1,13 +1,8 @@
 import logging
 
+from logging_config import configurar_logging, duracao_ms, iniciar_medicao, mascarar_id
+
 logger = logging.getLogger(__name__)
-
-
-def configurar_logging():
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
-    )
 
 
 def registrar_handlers(bot, planilha):
@@ -24,7 +19,8 @@ def registrar_handlers(bot, planilha):
 
         if user_id not in AUTHORIZED_CHAT_IDS:
             logger.warning(
-                "Mensagem ignorada de usuário não autorizado. user_id=%s", user_id
+                "Mensagem ignorada de usuário não autorizado. operacao=autorizar_usuario user_ref=%s",
+                mascarar_id(user_id),
             )
             return
 
@@ -48,8 +44,14 @@ def registrar_handlers(bot, planilha):
 
         bot.send_message(chat_id, "⏳ A processar...")
 
+        inicio = iniciar_medicao()
+
         try:
-            logger.info("Mensagem autorizada recebida. tamanho=%s", len(texto))
+            logger.info(
+                "Mensagem autorizada recebida. operacao=processar_mensagem tamanho=%s user_ref=%s",
+                len(texto),
+                mascarar_id(user_id),
+            )
 
             dados = interpretar_mensagem(texto)
 
@@ -58,12 +60,18 @@ def registrar_handlers(bot, planilha):
                 if isinstance(dados, RegistroFinanceiro)
                 else dados.get("intencao")
             )
-            logger.info("Intenção detectada pela IA. intencao=%s", intencao)
+            logger.info(
+                "Intenção detectada pela IA. operacao=interpretar_mensagem intencao=%s",
+                intencao,
+            )
 
             if intencao == "registrar":
                 resposta = registrar_movimentacao(planilha, dados)
                 bot.send_message(chat_id, resposta)
-                logger.info("Fluxo de registro concluído com sucesso.")
+                logger.info(
+                    "Fluxo de registro concluído com sucesso. operacao=registrar_movimentacao duracao_ms=%s",
+                    duracao_ms(inicio),
+                )
                 return
 
             if intencao == "consultar":
@@ -71,7 +79,10 @@ def registrar_handlers(bot, planilha):
                     planilha, dados.get("mes"), dados.get("ano")
                 )
                 bot.send_message(chat_id, resposta, parse_mode="Markdown")
-                logger.info("Fluxo de consulta concluído com sucesso.")
+                logger.info(
+                    "Fluxo de consulta concluído com sucesso. operacao=consultar_movimentacoes duracao_ms=%s",
+                    duracao_ms(inicio),
+                )
                 return
 
             bot.send_message(
@@ -79,9 +90,13 @@ def registrar_handlers(bot, planilha):
                 "Não consegui entender se você quer registrar ou consultar uma informação.",
             )
 
-        except Exception:
+        except Exception as exc:
             bot.send_message(chat_id, "Ops, ocorreu um erro ao processar o seu pedido.")
-            logger.exception("Erro ao processar mensagem autorizada.")
+            logger.exception(
+                "Erro ao processar mensagem autorizada. operacao=processar_mensagem erro=%s duracao_ms=%s",
+                exc.__class__.__name__,
+                duracao_ms(inicio),
+            )
 
 
 def criar_bot():
@@ -93,7 +108,7 @@ def criar_bot():
     planilha = conectar_planilha()
     bot = telebot.TeleBot(TELEGRAM_TOKEN)
     registrar_handlers(bot, planilha)
-    logger.info("A Financeirane está online e pronta para anotar tudo.")
+    logger.info("A FinanceirAne está online. operacao=inicializar_bot")
     return bot
 
 

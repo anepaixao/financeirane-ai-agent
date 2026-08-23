@@ -14,6 +14,7 @@ from config import (
     SPREADSHEET_NAME,
     TIPOS_PERMITIDOS,
 )
+from logging_config import duracao_ms, iniciar_medicao
 
 MAX_TENTATIVAS_ESCRITA = 3
 TEMPO_ESPERA_INICIAL = 2
@@ -27,10 +28,14 @@ class PlanilhaEscritaError(Exception):
 
 
 def conectar_planilha():
-    logger.info("Conectando ao Google Planilhas.")
+    inicio = iniciar_medicao()
+    logger.info("Conectando ao Google Planilhas. operacao=conectar_planilha")
     gc = gspread.service_account(filename=GOOGLE_CREDENTIALS_FILE)
     planilha = gc.open(SPREADSHEET_NAME).sheet1
-    logger.info("Conectado à planilha configurada.")
+    logger.info(
+        "Conectado à planilha configurada. operacao=conectar_planilha duracao_ms=%s",
+        duracao_ms(inicio),
+    )
     return planilha
 
 
@@ -91,15 +96,29 @@ def erro_transiente_google(erro):
 
 def inserir_linhas_com_retry(planilha, linhas, index):
     ultima_excecao = None
+    inicio = iniciar_medicao()
 
     for tentativa in range(1, MAX_TENTATIVAS_ESCRITA + 1):
         try:
             planilha.insert_rows(linhas, row=index)
+            logger.info(
+                "Lote escrito no Google Sheets. operacao=inserir_linhas tentativa=%s total_linhas=%s duracao_ms=%s",
+                tentativa,
+                len(linhas),
+                duracao_ms(inicio),
+            )
             return
         except Exception as exc:
             ultima_excecao = exc
 
             if not erro_transiente_google(exc) or tentativa == MAX_TENTATIVAS_ESCRITA:
+                logger.exception(
+                    "Falha definitiva ao escrever lote no Google Sheets. operacao=inserir_linhas tentativa=%s total_linhas=%s erro=%s duracao_ms=%s",
+                    tentativa,
+                    len(linhas),
+                    exc.__class__.__name__,
+                    duracao_ms(inicio),
+                )
                 raise PlanilhaEscritaError(
                     f"Falha ao escrever lote na planilha após {tentativa} tentativa(s)."
                 ) from exc
@@ -126,8 +145,9 @@ def registrar_movimentacao(planilha, dados):
     tipo = dados.tipo
 
     raw_valor = dados.valor_total
-    logger.info(
-        "Valor recebido da IA para registro. tipo_python=%s", type(raw_valor).__name__
+    logger.debug(
+        "Valor recebido da IA para registro. operacao=preparar_registro tipo_python=%s",
+        type(raw_valor).__name__,
     )
     valor_total = float(raw_valor)
     if valor_total <= 0:
@@ -145,10 +165,9 @@ def registrar_movimentacao(planilha, dados):
     )
 
     logger.info(
-        "Preparando escrita na planilha. parcelas=%s tipo=%s categoria=%s",
+        "Preparando escrita na planilha. operacao=registrar_movimentacao parcelas=%s tipo=%s",
         total_parcelas,
         tipo,
-        categoria,
     )
     linha_insercao = 2
     novas_linhas = []
@@ -176,7 +195,10 @@ def registrar_movimentacao(planilha, dados):
         )
 
     inserir_linhas_com_retry(planilha, novas_linhas, linha_insercao)
-    logger.info("Movimentação salva na planilha. total_linhas=%s", len(novas_linhas))
+    logger.info(
+        "Movimentação salva na planilha. operacao=registrar_movimentacao total_linhas=%s",
+        len(novas_linhas),
+    )
 
     if total_parcelas > 1:
         return f"✅ Registado!\nCompra de R$ {valor_total:.2f} ({categoria}) dividida em {total_parcelas}x lançada na planilha."
@@ -184,10 +206,19 @@ def registrar_movimentacao(planilha, dados):
 
 
 def consultar_gastos_mes(planilha, mes_alvo, ano_alvo):
-    logger.info("Buscando gastos para período. mes=%s ano=%s", mes_alvo, ano_alvo)
+    inicio = iniciar_medicao()
+    logger.info(
+        "Buscando gastos para período. operacao=consultar_gastos_mes mes=%s ano=%s",
+        mes_alvo,
+        ano_alvo,
+    )
 
     todas_as_linhas = planilha.get_all_values()[1:]
-    logger.info("Linhas lidas da planilha. total_linhas=%s", len(todas_as_linhas))
+    logger.info(
+        "Linhas lidas da planilha. operacao=consultar_gastos_mes total_linhas=%s duracao_ms=%s",
+        len(todas_as_linhas),
+        duracao_ms(inicio),
+    )
 
     total_gastos = 0.0
     detalhes_gastos = []
@@ -211,7 +242,11 @@ def consultar_gastos_mes(planilha, mes_alvo, ano_alvo):
                     detalhes_gastos.append(
                         f"• [{cat_linha}] {desc_linha}: R$ {valor_num:.2f}"
                     )
-        except Exception:
+        except Exception as exc:
+            logger.debug(
+                "Linha ignorada durante consulta. operacao=consultar_gastos_mes erro=%s",
+                exc.__class__.__name__,
+            )
             continue
 
     if total_gastos > 0:
