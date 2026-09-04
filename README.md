@@ -81,6 +81,8 @@ Google Sheets
 | `tests/` | Contém testes automatizados com pytest. |
 | `scripts/teste_gemini.py` | Lista modelos disponíveis para a chave Gemini configurada. |
 
+Para uma visão técnica detalhada, incluindo acoplamentos atuais e plano incremental de migração para `src/financeirane/`, consulte [`docs/architecture.md`](docs/architecture.md).
+
 ### Infraestrutura
 
 A FinanceirAne pode ser executada localmente durante o desenvolvimento ou em uma instância Linux. O ambiente usado no MVP inclui:
