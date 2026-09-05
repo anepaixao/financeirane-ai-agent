@@ -12,8 +12,8 @@ os.environ.setdefault("GEMINI_API_KEY", "gemini-api-key-ficticia")
 os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
 import ai_service
-from exceptions import EntradaInvalidaError, InterpretacaoIAError
-from models import RegistroFinanceiro
+from financeirane.domain.exceptions import EntradaInvalidaError, InterpretacaoIAError
+from financeirane.domain.models import RegistroFinanceiro
 
 
 class DataFixa:

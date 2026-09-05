@@ -11,7 +11,7 @@ os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
 import sheets_service
 from config import GOOGLE_CREDENTIALS_FILE, MAX_PARCELAS, SPREADSHEET_NAME
-from models import RegistroFinanceiro
+from financeirane.domain.models import RegistroFinanceiro
 from sheets_service import (
     PlanilhaEscritaError,
     conectar_planilha,

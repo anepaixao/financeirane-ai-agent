@@ -17,7 +17,7 @@ main.py
         ↓
 ai_service.py
         ↓
-RegistroFinanceiro + validators.py
+financeirane.domain.models + financeirane.domain.validators
         ↓
 sheets_service.py
         ↓
@@ -56,15 +56,15 @@ main.py
 ├── logging_config.py
 ├── config.py
 ├── ai_service.py
-├── models.py
+├── financeirane.domain.models
 └── sheets_service.py
 
 ai_service.py
 ├── config.py
-├── exceptions.py
+├── financeirane.domain.exceptions
 ├── logging_config.py
-├── models.py
-├── validators.py
+├── financeirane.domain.models
+├── financeirane.domain.validators
 └── google-genai
 
 sheets_service.py
@@ -73,10 +73,10 @@ sheets_service.py
 ├── gspread
 └── biblioteca padrão: calendar, datetime, decimal, logging, time
 
-validators.py
+financeirane.domain.validators
 ├── config.py
-├── exceptions.py
-├── models.py
+├── financeirane.domain.exceptions
+├── financeirane.domain.models
 └── datetime
 
 config.py
@@ -95,23 +95,24 @@ logging_config.py
 - `main.py -> logging_config.py`: configuração e helpers de observabilidade.
 - `main.py -> config.py`: token, usuários autorizados e limite de mensagem.
 - `main.py -> ai_service.py`: interpretação da mensagem.
-- `main.py -> models.py`: diferenciação entre registro e consulta.
+- `main.py -> financeirane.domain.models`: diferenciação entre registro e consulta.
 - `main.py -> sheets_service.py`: persistência e consulta.
 - `ai_service.py -> config.py`: chave Gemini e categorias permitidas.
-- `ai_service.py -> models.py`: criação de `RegistroFinanceiro`.
-- `ai_service.py -> validators.py`: validação do registro antes de sair do serviço de IA.
-- `ai_service.py -> exceptions.py`: erros de interpretação.
+- `ai_service.py -> financeirane.domain.models`: criação de `RegistroFinanceiro`.
+- `ai_service.py -> financeirane.domain.validators`: validação do registro antes de sair do serviço de IA.
+- `ai_service.py -> financeirane.domain.exceptions`: erros de interpretação.
 - `sheets_service.py -> config.py`: credenciais, nome da planilha, categorias, tipos e limite de parcelas.
 - `sheets_service.py -> logging_config.py`: duração de operações.
-- `validators.py -> config.py`: categorias, tipos e limite de parcelas.
+- `financeirane.domain.validators -> config.py`: categorias, tipos e limite de parcelas.
 
 Acoplamentos relevantes:
 
 - `ai_service.py` instancia `genai.Client` em nível de módulo.
 - `sheets_service.py` conhece diretamente `gspread` e o formato da planilha.
 - `main.py` orquestra Telegram, IA e Google Sheets no mesmo handler.
-- `validators.py` depende de constantes de `config.py`, misturando regra de domínio com configuração global.
+- `financeirane.domain.validators` depende de constantes de `config.py`, misturando regra de domínio com configuração global.
 - `config.py` valida variáveis obrigatórias durante import.
+- `models.py`, `validators.py` e `exceptions.py` na raiz são wrappers temporários de compatibilidade.
 
 ## Responsabilidades Atuais
 
@@ -120,9 +121,9 @@ Acoplamentos relevantes:
 | `main.py` | Interface Telegram e orquestração do fluxo | Autorização, comandos, mensagens de erro, inicialização | Boa para o tamanho atual, mas concentra interface e caso de uso | Médio |
 | `ai_service.py` | Interpretar mensagem com Gemini | Prompt, parsing JSON, criação e validação de `RegistroFinanceiro`, logs | Parcialmente delimitado; mistura integração externa e normalização de resposta | Médio |
 | `sheets_service.py` | Persistir e consultar Google Sheets | Retry, backoff, cálculo de parcelas, sanitização, formatação de resposta | Funcional, mas mistura repositório, regras financeiras e apresentação | Alto |
-| `validators.py` | Validar regras de negócio | Uso de categorias/tipos configurados | Bem delimitado para o MVP | Baixo |
-| `models.py` | Modelo de domínio | Nenhuma relevante | Bem delimitado | Baixo |
-| `exceptions.py` | Exceções customizadas | Nenhuma relevante | Bem delimitado | Baixo |
+| `src/financeirane/domain/validators.py` | Validar regras de negócio | Uso de categorias/tipos configurados | Bem delimitado para o MVP, com dependência temporária de `config.py` | Baixo |
+| `src/financeirane/domain/models.py` | Modelo de domínio | Nenhuma relevante | Bem delimitado | Baixo |
+| `src/financeirane/domain/exceptions.py` | Exceções customizadas | Nenhuma relevante | Bem delimitado | Baixo |
 | `config.py` | Configuração via ambiente | Validação em import e constantes de domínio | Útil, mas com efeito colateral no import | Médio |
 | `logging_config.py` | Configuração e helpers de logging | Mascaramento de IDs e medição de duração | Bem delimitado | Baixo |
 
@@ -132,7 +133,7 @@ A estrutura atual é uma arquitetura plana por módulos, com separação pragmá
 
 O que existe de fato:
 
-- Domínio simples: `models.py`, `validators.py`, `exceptions.py`.
+- Domínio simples: `src/financeirane/domain/models.py`, `src/financeirane/domain/validators.py`, `src/financeirane/domain/exceptions.py`.
 - Aplicação/orquestração: `main.py`.
 - Integração com IA: `ai_service.py`.
 - Integração com persistência: `sheets_service.py`.
@@ -254,6 +255,7 @@ Essa estrutura não deve ser criada de uma vez. O alvo é separar responsabilida
 - Testes que protegem: `tests/test_validators.py`, `tests/test_ai_service.py`, `tests/test_sheets_service.py`.
 - Critério de conclusão: domínio importável pelo pacote e comportamento preservado.
 - Rollback: restaurar arquivos na raiz e imports anteriores.
+- Status: concluída com wrappers temporários na raiz para compatibilidade.
 
 ### Fase 4: Migrar Configuração E Logging
 
