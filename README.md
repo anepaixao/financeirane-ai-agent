@@ -121,12 +121,19 @@ As credenciais permanecem armazenadas localmente na máquina/instância e não f
 ├── models.py
 ├── validators.py
 ├── exceptions.py
+├── src/
+│   └── financeirane/
+│       └── __init__.py
 ├── scripts/
 │   └── teste_gemini.py
 ├── tests/
 │   ├── __init__.py
+│   ├── test_ai_service.py
 │   ├── test_config.py
+│   ├── test_logging_config.py
 │   ├── test_main_handlers.py
+│   ├── test_package_import.py
+│   ├── test_sheets_service.py
 │   ├── test_sheets_utils.py
 │   └── test_validators.py
 ├── requirements.txt
@@ -167,6 +174,12 @@ Instale as dependências:
 
 ```bash
 python -m pip install -r requirements.txt
+```
+
+Instale o pacote em modo editável para desenvolvimento local com `src layout`:
+
+```bash
+python -m pip install -e .
 ```
 
 Instale os hooks de pre-commit:

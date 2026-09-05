@@ -244,6 +244,7 @@ Essa estrutura não deve ser criada de uma vez. O alvo é separar responsabilida
 - Testes que protegem: pytest completo, Ruff e pre-commit.
 - Critério de conclusão: pacote importável sem alterar execução atual.
 - Rollback: remover diretório `src/`.
+- Status: estrutura mínima preparada em `src/financeirane/`, sem migração de lógica.
 
 ### Fase 3: Migrar Domínio
 

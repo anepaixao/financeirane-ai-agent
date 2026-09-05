@@ -15,6 +15,7 @@ __pycache__/
 **/__pycache__/
 **pycache**/
 *.pyc
+*.egg-info/
 
 # Arquivos locais de editor/sistema
 .DS_Store
