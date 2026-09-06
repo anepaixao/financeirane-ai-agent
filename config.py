@@ -1,59 +1,30 @@
-import logging
-import os
+# Compatibilidade temporária durante a migração incremental para src layout.
+from financeirane.config import (
+    AUTHORIZED_CHAT_IDS,
+    AUTHORIZED_CHAT_IDS_RAW,
+    CATEGORIAS_PERMITIDAS,
+    GEMINI_API_KEY,
+    GOOGLE_CREDENTIALS_FILE,
+    MAX_MESSAGE_LENGTH,
+    MAX_PARCELAS,
+    SPREADSHEET_NAME,
+    TELEGRAM_TOKEN,
+    TIPOS_PERMITIDOS,
+    parse_authorized_chat_ids,
+    validate_required_settings,
+)
 
-from dotenv import load_dotenv
-
-load_dotenv()
-logger = logging.getLogger(__name__)
-
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_TOKEN")
-GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-AUTHORIZED_CHAT_IDS_RAW = os.getenv("AUTHORIZED_CHAT_IDS", "")
-
-GOOGLE_CREDENTIALS_FILE = os.getenv("GOOGLE_CREDENTIALS_FILE", "credenciais.json")
-SPREADSHEET_NAME = os.getenv("SPREADSHEET_NAME", "Financeirane")
-
-CATEGORIAS_PERMITIDAS = [
-    "Cartão de Crédito",
-    "Aluguel",
-    "Feira",
-    "Internet",
-    "Transporte",
-    "Lazer",
-    "Saúde",
-    "Educação",
-    "Outros",
+__all__ = [
+    "AUTHORIZED_CHAT_IDS",
+    "AUTHORIZED_CHAT_IDS_RAW",
+    "CATEGORIAS_PERMITIDAS",
+    "GEMINI_API_KEY",
+    "GOOGLE_CREDENTIALS_FILE",
+    "MAX_MESSAGE_LENGTH",
+    "MAX_PARCELAS",
+    "SPREADSHEET_NAME",
+    "TELEGRAM_TOKEN",
+    "TIPOS_PERMITIDOS",
+    "parse_authorized_chat_ids",
+    "validate_required_settings",
 ]
-TIPOS_PERMITIDOS = {"gasto", "receita"}
-MAX_MESSAGE_LENGTH = 1000
-MAX_PARCELAS = 120
-
-
-def parse_authorized_chat_ids(raw_chat_ids):
-    try:
-        return {
-            int(chat_id.strip())
-            for chat_id in raw_chat_ids.split(",")
-            if chat_id.strip()
-        }
-    except ValueError as exc:
-        raise RuntimeError(
-            "AUTHORIZED_CHAT_IDS deve conter apenas IDs numéricos separados por vírgula"
-        ) from exc
-
-
-def validate_required_settings():
-    if not TELEGRAM_TOKEN:
-        raise RuntimeError("TELEGRAM_TOKEN não encontrado no arquivo .env")
-
-    if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY não encontrado no arquivo .env")
-
-
-validate_required_settings()
-AUTHORIZED_CHAT_IDS = parse_authorized_chat_ids(AUTHORIZED_CHAT_IDS_RAW)
-
-if not AUTHORIZED_CHAT_IDS:
-    logger.warning(
-        "AUTHORIZED_CHAT_IDS não configurado. O bot ignorará mensagens de todos os usuários."
-    )

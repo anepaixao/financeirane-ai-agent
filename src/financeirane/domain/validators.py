@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from config import CATEGORIAS_PERMITIDAS, MAX_PARCELAS, TIPOS_PERMITIDOS
+from financeirane.config import CATEGORIAS_PERMITIDAS, MAX_PARCELAS, TIPOS_PERMITIDOS
 from financeirane.domain.exceptions import EntradaInvalidaError
 from financeirane.domain.models import RegistroFinanceiro
 
