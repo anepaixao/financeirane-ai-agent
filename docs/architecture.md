@@ -19,7 +19,7 @@ ai_service.py
         ↓
 financeirane.domain.models + financeirane.domain.validators
         ↓
-sheets_service.py
+financeirane.sheets_service
         ↓
 Google Sheets
 ```
@@ -35,7 +35,7 @@ ai_service.py
         ↓
 dict com intenção consultar, mês e ano
         ↓
-sheets_service.py
+financeirane.sheets_service
         ↓
 Google Sheets
         ↓
@@ -71,8 +71,11 @@ financeirane.ai_service
 └── google-genai
 
 sheets_service.py
-├── config.py
-├── logging_config.py
+└── financeirane.sheets_service
+
+financeirane.sheets_service
+├── financeirane.config
+├── financeirane.logging_config
 ├── gspread
 └── biblioteca padrão: calendar, datetime, decimal, logging, time
 
@@ -105,25 +108,26 @@ financeirane.logging_config
 - `main.py -> config.py`: token, usuários autorizados e limite de mensagem.
 - `main.py -> ai_service.py`: interpretação da mensagem via wrapper temporário.
 - `main.py -> models.py`: diferenciação entre registro e consulta via wrapper temporário.
-- `main.py -> sheets_service.py`: persistência e consulta.
+- `main.py -> sheets_service.py`: persistência e consulta via wrapper temporário.
 - `ai_service.py -> financeirane.ai_service`: wrapper temporário para a integração Gemini.
 - `financeirane.ai_service -> financeirane.config`: chave Gemini e categorias permitidas.
 - `financeirane.ai_service -> financeirane.domain.models`: criação de `RegistroFinanceiro`.
 - `financeirane.ai_service -> financeirane.domain.validators`: validação do registro antes de sair do serviço de IA.
 - `financeirane.ai_service -> financeirane.domain.exceptions`: erros de interpretação.
 - `financeirane.ai_service -> financeirane.logging_config`: duração de operações.
-- `sheets_service.py -> config.py`: credenciais, nome da planilha, categorias, tipos e limite de parcelas.
-- `sheets_service.py -> logging_config.py`: duração de operações.
+- `sheets_service.py -> financeirane.sheets_service`: wrapper temporário para persistência e consulta.
+- `financeirane.sheets_service -> financeirane.config`: credenciais, nome da planilha, categorias, tipos e limite de parcelas.
+- `financeirane.sheets_service -> financeirane.logging_config`: duração de operações.
 - `financeirane.domain.validators -> financeirane.config`: categorias, tipos e limite de parcelas.
 
 Acoplamentos relevantes:
 
 - `financeirane.ai_service` instancia `genai.Client` em nível de módulo.
-- `sheets_service.py` conhece diretamente `gspread` e o formato da planilha.
+- `financeirane.sheets_service` conhece diretamente `gspread` e o formato da planilha.
 - `main.py` orquestra Telegram, IA e Google Sheets no mesmo handler.
 - `financeirane.domain.validators` depende de constantes de `financeirane.config`, mantendo temporariamente categorias e tipos na configuração.
 - `financeirane.config` valida variáveis obrigatórias durante import.
-- `ai_service.py`, `config.py`, `logging_config.py`, `models.py`, `validators.py` e `exceptions.py` na raiz são wrappers temporários de compatibilidade.
+- `ai_service.py`, `sheets_service.py`, `config.py`, `logging_config.py`, `models.py`, `validators.py` e `exceptions.py` na raiz são wrappers temporários de compatibilidade.
 
 ## Responsabilidades Atuais
 
@@ -131,13 +135,13 @@ Acoplamentos relevantes:
 | --- | --- | --- | --- | --- |
 | `main.py` | Interface Telegram e orquestração do fluxo | Autorização, comandos, mensagens de erro, inicialização | Boa para o tamanho atual, mas concentra interface e caso de uso | Médio |
 | `src/financeirane/ai_service.py` | Interpretar mensagem com Gemini | Prompt, parsing JSON, criação e validação de `RegistroFinanceiro`, logs | Parcialmente delimitado; mistura integração externa e normalização de resposta | Médio |
-| `sheets_service.py` | Persistir e consultar Google Sheets | Retry, backoff, cálculo de parcelas, sanitização, formatação de resposta | Funcional, mas mistura repositório, regras financeiras e apresentação | Alto |
+| `src/financeirane/sheets_service.py` | Persistir e consultar Google Sheets | Retry, backoff, cálculo de parcelas, sanitização, formatação de resposta | Funcional, mas mistura repositório, regras financeiras e apresentação | Alto |
 | `src/financeirane/domain/validators.py` | Validar regras de negócio | Uso de categorias/tipos configurados | Bem delimitado para o MVP, com dependência temporária de `financeirane.config` | Baixo |
 | `src/financeirane/domain/models.py` | Modelo de domínio | Nenhuma relevante | Bem delimitado | Baixo |
 | `src/financeirane/domain/exceptions.py` | Exceções customizadas | Nenhuma relevante | Bem delimitado | Baixo |
 | `src/financeirane/config.py` | Configuração via ambiente | Validação em import e constantes de domínio | Útil, mas com efeito colateral no import | Médio |
 | `src/financeirane/logging_config.py` | Configuração e helpers de logging | Mascaramento de IDs e medição de duração | Bem delimitado | Baixo |
-| `ai_service.py`, `config.py` e `logging_config.py` | Compatibilidade de imports antigos | Reexportam a implementação do pacote | Temporário e simples | Baixo |
+| `ai_service.py`, `sheets_service.py`, `config.py` e `logging_config.py` | Compatibilidade de imports antigos | Reexportam a implementação do pacote | Temporário e simples | Baixo |
 
 ## Fronteiras Atuais
 
@@ -148,7 +152,7 @@ O que existe de fato:
 - Domínio simples: `src/financeirane/domain/models.py`, `src/financeirane/domain/validators.py`, `src/financeirane/domain/exceptions.py`.
 - Aplicação/orquestração: `main.py`.
 - Integração com IA: `src/financeirane/ai_service.py`, com wrapper temporário na raiz.
-- Integração com persistência: `sheets_service.py`.
+- Integração com persistência: `src/financeirane/sheets_service.py`, com wrapper temporário na raiz.
 - Configuração e observabilidade: `src/financeirane/config.py`, `src/financeirane/logging_config.py`, com wrappers temporários na raiz.
 - Testes automatizados cobrindo fluxos principais e utilitários.
 
@@ -184,7 +188,7 @@ O que existe de fato:
 
 ### Alta Prioridade
 
-- `sheets_service.py` mistura persistência, regra financeira, parsing de consulta e formatação de resposta.
+- `financeirane.sheets_service` mistura persistência, regra financeira, parsing de consulta e formatação de resposta.
 - `main.py` concentra interface Telegram e caso de uso, o que dificulta adicionar novas interfaces.
 - Google Sheets é a persistência atual e não oferece transações reais.
 
@@ -289,14 +293,15 @@ Essa estrutura não deve ser criada de uma vez. O alvo é separar responsabilida
 - Rollback: restaurar módulo e imports.
 - Status: concluída com `financeirane.ai_service` como fonte real, mantendo wrapper temporário na raiz.
 
-### Fase 6: Separar Persistência Google Sheets
+### Fase 6: Migrar Integração Google Sheets
 
-- Objetivo: transformar `sheets_service.py` em repositório/adaptador, preservando regras financeiras já testadas.
-- Arquivos envolvidos: `sheets_service.py`, possível `repositories/sheets_repository.py`, testes.
+- Objetivo: mover `sheets_service.py` para o pacote, preservando regras financeiras já testadas.
+- Arquivos envolvidos: `sheets_service.py`, `src/financeirane/sheets_service.py` e testes.
 - Risco: alto.
 - Testes que protegem: `tests/test_sheets_service.py`, `tests/test_sheets_utils.py`.
 - Critério de conclusão: lote, retry, centavos, consulta e sanitização preservados.
-- Rollback: manter `sheets_service.py` atual.
+- Rollback: restaurar implementação na raiz.
+- Status: concluída com `financeirane.sheets_service` como fonte real, mantendo wrapper temporário na raiz.
 
 ### Fase 7: Separar Orquestração Da Interface Telegram
 
