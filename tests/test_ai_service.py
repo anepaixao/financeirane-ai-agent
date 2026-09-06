@@ -11,7 +11,7 @@ os.environ.setdefault("TELEGRAM_TOKEN", "telegram-token-ficticio")
 os.environ.setdefault("GEMINI_API_KEY", "gemini-api-key-ficticia")
 os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
-import ai_service
+import financeirane.ai_service as ai_service
 from financeirane.domain.exceptions import EntradaInvalidaError, InterpretacaoIAError
 from financeirane.domain.models import RegistroFinanceiro
 
@@ -32,7 +32,8 @@ class DataFixa:
 def recarregar_ai_service(monkeypatch):
     monkeypatch.setenv("GEMINI_API_KEY", "gemini-api-key-ficticia")
     sys.modules.pop("ai_service", None)
-    modulo = importlib.import_module("ai_service")
+    sys.modules.pop("financeirane.ai_service", None)
+    modulo = importlib.import_module("financeirane.ai_service")
     globals()["ai_service"] = modulo
     yield modulo
 
