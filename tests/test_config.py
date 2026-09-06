@@ -12,11 +12,13 @@ def config_module(monkeypatch):
     monkeypatch.setenv("AUTHORIZED_CHAT_IDS", "123456789")
 
     sys.modules.pop("config", None)
+    sys.modules.pop("financeirane.config", None)
 
     module = importlib.import_module("config")
     yield module
 
     sys.modules.pop("config", None)
+    sys.modules.pop("financeirane.config", None)
 
 
 def test_parse_authorized_chat_ids_retorna_conjunto_vazio(config_module):
