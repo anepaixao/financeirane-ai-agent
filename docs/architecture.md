@@ -60,11 +60,14 @@ main.py
 └── sheets_service.py
 
 ai_service.py
-├── config.py
-├── exceptions.py
-├── logging_config.py
-├── models.py
-├── validators.py
+└── financeirane.ai_service
+
+financeirane.ai_service
+├── financeirane.config
+├── financeirane.domain.exceptions
+├── financeirane.logging_config
+├── financeirane.domain.models
+├── financeirane.domain.validators
 └── google-genai
 
 sheets_service.py
@@ -100,39 +103,41 @@ financeirane.logging_config
 
 - `main.py -> logging_config.py`: configuração e helpers de observabilidade.
 - `main.py -> config.py`: token, usuários autorizados e limite de mensagem.
-- `main.py -> ai_service.py`: interpretação da mensagem.
+- `main.py -> ai_service.py`: interpretação da mensagem via wrapper temporário.
 - `main.py -> models.py`: diferenciação entre registro e consulta via wrapper temporário.
 - `main.py -> sheets_service.py`: persistência e consulta.
-- `ai_service.py -> config.py`: chave Gemini e categorias permitidas.
-- `ai_service.py -> models.py`: criação de `RegistroFinanceiro` via wrapper temporário.
-- `ai_service.py -> validators.py`: validação do registro antes de sair do serviço de IA via wrapper temporário.
-- `ai_service.py -> exceptions.py`: erros de interpretação via wrapper temporário.
+- `ai_service.py -> financeirane.ai_service`: wrapper temporário para a integração Gemini.
+- `financeirane.ai_service -> financeirane.config`: chave Gemini e categorias permitidas.
+- `financeirane.ai_service -> financeirane.domain.models`: criação de `RegistroFinanceiro`.
+- `financeirane.ai_service -> financeirane.domain.validators`: validação do registro antes de sair do serviço de IA.
+- `financeirane.ai_service -> financeirane.domain.exceptions`: erros de interpretação.
+- `financeirane.ai_service -> financeirane.logging_config`: duração de operações.
 - `sheets_service.py -> config.py`: credenciais, nome da planilha, categorias, tipos e limite de parcelas.
 - `sheets_service.py -> logging_config.py`: duração de operações.
 - `financeirane.domain.validators -> financeirane.config`: categorias, tipos e limite de parcelas.
 
 Acoplamentos relevantes:
 
-- `ai_service.py` instancia `genai.Client` em nível de módulo.
+- `financeirane.ai_service` instancia `genai.Client` em nível de módulo.
 - `sheets_service.py` conhece diretamente `gspread` e o formato da planilha.
 - `main.py` orquestra Telegram, IA e Google Sheets no mesmo handler.
 - `financeirane.domain.validators` depende de constantes de `financeirane.config`, mantendo temporariamente categorias e tipos na configuração.
 - `financeirane.config` valida variáveis obrigatórias durante import.
-- `config.py`, `logging_config.py`, `models.py`, `validators.py` e `exceptions.py` na raiz são wrappers temporários de compatibilidade.
+- `ai_service.py`, `config.py`, `logging_config.py`, `models.py`, `validators.py` e `exceptions.py` na raiz são wrappers temporários de compatibilidade.
 
 ## Responsabilidades Atuais
 
 | Módulo | Responsabilidade principal | Responsabilidades secundárias | Delimitação | Risco de manutenção |
 | --- | --- | --- | --- | --- |
 | `main.py` | Interface Telegram e orquestração do fluxo | Autorização, comandos, mensagens de erro, inicialização | Boa para o tamanho atual, mas concentra interface e caso de uso | Médio |
-| `ai_service.py` | Interpretar mensagem com Gemini | Prompt, parsing JSON, criação e validação de `RegistroFinanceiro`, logs | Parcialmente delimitado; mistura integração externa e normalização de resposta | Médio |
+| `src/financeirane/ai_service.py` | Interpretar mensagem com Gemini | Prompt, parsing JSON, criação e validação de `RegistroFinanceiro`, logs | Parcialmente delimitado; mistura integração externa e normalização de resposta | Médio |
 | `sheets_service.py` | Persistir e consultar Google Sheets | Retry, backoff, cálculo de parcelas, sanitização, formatação de resposta | Funcional, mas mistura repositório, regras financeiras e apresentação | Alto |
 | `src/financeirane/domain/validators.py` | Validar regras de negócio | Uso de categorias/tipos configurados | Bem delimitado para o MVP, com dependência temporária de `financeirane.config` | Baixo |
 | `src/financeirane/domain/models.py` | Modelo de domínio | Nenhuma relevante | Bem delimitado | Baixo |
 | `src/financeirane/domain/exceptions.py` | Exceções customizadas | Nenhuma relevante | Bem delimitado | Baixo |
 | `src/financeirane/config.py` | Configuração via ambiente | Validação em import e constantes de domínio | Útil, mas com efeito colateral no import | Médio |
 | `src/financeirane/logging_config.py` | Configuração e helpers de logging | Mascaramento de IDs e medição de duração | Bem delimitado | Baixo |
-| `config.py` e `logging_config.py` | Compatibilidade de imports antigos | Reexportam a implementação do pacote | Temporário e simples | Baixo |
+| `ai_service.py`, `config.py` e `logging_config.py` | Compatibilidade de imports antigos | Reexportam a implementação do pacote | Temporário e simples | Baixo |
 
 ## Fronteiras Atuais
 
@@ -142,7 +147,7 @@ O que existe de fato:
 
 - Domínio simples: `src/financeirane/domain/models.py`, `src/financeirane/domain/validators.py`, `src/financeirane/domain/exceptions.py`.
 - Aplicação/orquestração: `main.py`.
-- Integração com IA: `ai_service.py`.
+- Integração com IA: `src/financeirane/ai_service.py`, com wrapper temporário na raiz.
 - Integração com persistência: `sheets_service.py`.
 - Configuração e observabilidade: `src/financeirane/config.py`, `src/financeirane/logging_config.py`, com wrappers temporários na raiz.
 - Testes automatizados cobrindo fluxos principais e utilitários.
@@ -185,7 +190,7 @@ O que existe de fato:
 
 ### Média Prioridade
 
-- `ai_service.py` instancia o cliente Gemini em nível de módulo.
+- `financeirane.ai_service` instancia o cliente Gemini em nível de módulo.
 - `financeirane.config` executa validação durante import.
 - Categorias e tipos ficam em `financeirane.config`, embora sejam conceitos de domínio.
 - A resposta de consulta ainda usa `dict`; registro usa `RegistroFinanceiro`.
@@ -276,12 +281,13 @@ Essa estrutura não deve ser criada de uma vez. O alvo é separar responsabilida
 
 ### Fase 5: Migrar Integração Gemini
 
-- Objetivo: mover `ai_service.py` para `services/` ou `integrations/`, sem mudar prompt ou modelo.
+- Objetivo: mover `ai_service.py` para o pacote, sem mudar prompt ou modelo.
 - Arquivos envolvidos: `ai_service.py`, imports e testes.
 - Risco: médio.
 - Testes que protegem: `tests/test_ai_service.py`.
 - Critério de conclusão: Gemini mockado nos testes, modelo preservado e sem chamada real.
 - Rollback: restaurar módulo e imports.
+- Status: concluída com `financeirane.ai_service` como fonte real, mantendo wrapper temporário na raiz.
 
 ### Fase 6: Separar Persistência Google Sheets
 
