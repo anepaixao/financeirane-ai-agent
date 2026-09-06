@@ -8,7 +8,7 @@ os.environ.setdefault("GEMINI_API_KEY", "gemini-api-key-ficticia")
 os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
 from config import CATEGORIAS_PERMITIDAS, TIPOS_PERMITIDOS
-from sheets_service import (
+from financeirane.sheets_service import (
     calcular_data_parcela,
     formatar_centavos,
     normalizar_categoria,

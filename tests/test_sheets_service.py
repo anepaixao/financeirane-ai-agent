@@ -9,10 +9,10 @@ os.environ.setdefault("TELEGRAM_TOKEN", "telegram-token-ficticio")
 os.environ.setdefault("GEMINI_API_KEY", "gemini-api-key-ficticia")
 os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
-import sheets_service
+import financeirane.sheets_service as sheets_service
 from config import GOOGLE_CREDENTIALS_FILE, MAX_PARCELAS, SPREADSHEET_NAME
 from financeirane.domain.models import RegistroFinanceiro
-from sheets_service import (
+from financeirane.sheets_service import (
     PlanilhaEscritaError,
     conectar_planilha,
     consultar_gastos_mes,

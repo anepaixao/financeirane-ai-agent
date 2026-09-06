@@ -64,7 +64,7 @@ financeirane.ai_service
         ↓
 financeirane.domain
         ↓
-sheets_service.py
+financeirane.sheets_service
         ↓
 Google Sheets
 ```
@@ -75,9 +75,9 @@ Google Sheets
 | `src/financeirane/ai_service.py` | Envia mensagens ao Gemini, exige JSON estruturado e instancia `RegistroFinanceiro`. |
 | `src/financeirane/config.py` | Carrega variáveis de ambiente e constantes da aplicação. |
 | `src/financeirane/logging_config.py` | Configura logging, mascaramento de IDs e helpers de duração. |
+| `src/financeirane/sheets_service.py` | Conecta ao Google Sheets, consulta registros e persiste movimentações. |
 | `src/financeirane/domain/` | Define modelos, validações e exceções de domínio. |
-| `ai_service.py`, `config.py`, `logging_config.py`, `models.py`, `validators.py`, `exceptions.py` | Wrappers temporários de compatibilidade para imports antigos. |
-| `sheets_service.py` | Conecta ao Google Sheets, consulta registros e persiste movimentações. |
+| `ai_service.py`, `sheets_service.py`, `config.py`, `logging_config.py`, `models.py`, `validators.py`, `exceptions.py` | Wrappers temporários de compatibilidade para imports antigos. |
 | `tests/` | Contém testes automatizados com pytest. |
 | `scripts/teste_gemini.py` | Lista modelos disponíveis para a chave Gemini configurada. |
 
@@ -127,6 +127,7 @@ As credenciais permanecem armazenadas localmente na máquina/instância e não f
 │       ├── ai_service.py
 │       ├── config.py
 │       ├── logging_config.py
+│       ├── sheets_service.py
 │       └── domain/
 │           ├── __init__.py
 │           ├── exceptions.py
@@ -393,7 +394,7 @@ python -m compileall .
 ```
 
 ```bash
-python -m py_compile main.py ai_service.py sheets_service.py models.py validators.py exceptions.py config.py logging_config.py src/financeirane/ai_service.py src/financeirane/config.py src/financeirane/logging_config.py src/financeirane/domain/models.py src/financeirane/domain/validators.py src/financeirane/domain/exceptions.py
+python -m py_compile main.py ai_service.py sheets_service.py models.py validators.py exceptions.py config.py logging_config.py src/financeirane/ai_service.py src/financeirane/config.py src/financeirane/logging_config.py src/financeirane/sheets_service.py src/financeirane/domain/models.py src/financeirane/domain/validators.py src/financeirane/domain/exceptions.py
 ```
 
 Áreas cobertas atualmente:
@@ -435,7 +436,7 @@ Se `AUTHORIZED_CHAT_IDS` estiver vazio, o bot registra um aviso em log e ignora 
 4. ai_service.py interpreta a mensagem com Gemini
 5. ai_service.py converte registros em RegistroFinanceiro
 6. financeirane.domain.validators valida as regras de negócio
-7. sheets_service.py registra ou consulta dados no Google Sheets
+7. financeirane.sheets_service registra ou consulta dados no Google Sheets
 8. main.py envia a resposta ao usuário no Telegram
 ```
 
