@@ -1,7 +1,7 @@
 import logging
 from unittest.mock import Mock
 
-import logging_config
+import financeirane.logging_config as package_logging_config
 from logging_config import (
     LOG_FORMAT,
     configurar_logging,
@@ -52,6 +52,8 @@ def test_mascarar_id_trata_valor_ausente():
 
 
 def test_duracao_ms_calcula_duracao_de_forma_deterministica(monkeypatch):
-    monkeypatch.setattr(logging_config, "perf_counter", Mock(return_value=10.125))
+    monkeypatch.setattr(
+        package_logging_config, "perf_counter", Mock(return_value=10.125)
+    )
 
     assert duracao_ms(10.0) == 125.0

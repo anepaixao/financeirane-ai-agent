@@ -1,11 +1,4 @@
-from dataclasses import dataclass
+# Compatibilidade temporária durante a migração incremental para src layout.
+from financeirane.domain.models import RegistroFinanceiro
 
-
-@dataclass
-class RegistroFinanceiro:
-    data: str
-    tipo: str
-    valor_total: float
-    descricao: str
-    parcelas: int
-    categoria: str
+__all__ = ["RegistroFinanceiro"]

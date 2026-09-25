@@ -1,10 +1,8 @@
-class FinanceiraneError(Exception):
-    pass
+# Compatibilidade temporária durante a migração incremental para src layout.
+from financeirane.domain.exceptions import (
+    EntradaInvalidaError,
+    FinanceiraneError,
+    InterpretacaoIAError,
+)
 
-
-class InterpretacaoIAError(FinanceiraneError):
-    pass
-
-
-class EntradaInvalidaError(FinanceiraneError):
-    pass
+__all__ = ["EntradaInvalidaError", "FinanceiraneError", "InterpretacaoIAError"]

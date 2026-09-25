@@ -7,9 +7,9 @@ os.environ.setdefault("GEMINI_API_KEY", "gemini-api-key-ficticia")
 os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
 from config import CATEGORIAS_PERMITIDAS, MAX_PARCELAS, TIPOS_PERMITIDOS
-from exceptions import EntradaInvalidaError
-from models import RegistroFinanceiro
-from validators import (
+from financeirane.domain.exceptions import EntradaInvalidaError
+from financeirane.domain.models import RegistroFinanceiro
+from financeirane.domain.validators import (
     MAX_DESCRICAO,
     validar_categoria,
     validar_data,

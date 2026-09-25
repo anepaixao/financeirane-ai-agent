@@ -1,0 +1,388 @@
+# Arquitetura Técnica da FinanceirAne
+
+Este documento descreve a arquitetura atual da FinanceirAne e propõe uma migração incremental para um layout de pacote em `src/financeirane/`.
+
+O objetivo é orientar evolução técnica sem executar uma migração agora, sem alterar comportamento funcional e sem criar um big-bang refactor.
+
+## Visão Geral
+
+A FinanceirAne é um bot financeiro pessoal executado em Python. A interface atual é o Telegram, a interpretação de linguagem natural é feita pelo Gemini e a persistência atual é uma planilha do Google Sheets.
+
+Fluxo principal de registro:
+
+```text
+Usuário no Telegram
+        ↓
+main.py
+        ↓
+financeirane.interfaces.telegram_bot
+        ↓
+financeirane.ai_service
+        ↓
+financeirane.domain.models + financeirane.domain.validators
+        ↓
+financeirane.sheets_service
+        ↓
+Google Sheets
+```
+
+Fluxo principal de consulta:
+
+```text
+Usuário no Telegram
+        ↓
+main.py
+        ↓
+financeirane.interfaces.telegram_bot
+        ↓
+financeirane.ai_service
+        ↓
+dict com intenção consultar, mês e ano
+        ↓
+financeirane.sheets_service
+        ↓
+Google Sheets
+        ↓
+resposta formatada para Telegram
+```
+
+## Pontos De Entrada
+
+- `main.py`: entry point da aplicação.
+- `main.main()`: configura logging, cria o bot e inicia `infinity_polling()`.
+- `main.main()`: delega criação do bot e inicia `infinity_polling()`.
+- `financeirane.interfaces.telegram_bot.criar_bot()`: conecta ao Google Sheets, cria `telebot.TeleBot` e registra handlers.
+- `financeirane.interfaces.telegram_bot.registrar_handlers(bot, planilha)`: registra o handler que processa mensagens recebidas.
+
+## Mapa De Módulos
+
+```text
+main.py
+├── logging_config.py
+└── financeirane.interfaces.telegram_bot
+
+financeirane.interfaces.telegram_bot
+├── financeirane.ai_service
+├── financeirane.config
+├── financeirane.domain.models
+├── financeirane.logging_config
+├── financeirane.sheets_service
+└── telebot
+
+ai_service.py
+└── financeirane.ai_service
+
+financeirane.ai_service
+├── financeirane.config
+├── financeirane.domain.exceptions
+├── financeirane.logging_config
+├── financeirane.domain.models
+├── financeirane.domain.validators
+└── google-genai
+
+sheets_service.py
+└── financeirane.sheets_service
+
+financeirane.sheets_service
+├── financeirane.config
+├── financeirane.logging_config
+├── gspread
+└── biblioteca padrão: calendar, datetime, decimal, logging, time
+
+financeirane.domain.validators
+├── financeirane.config
+├── financeirane.domain.exceptions
+├── financeirane.domain.models
+└── datetime
+
+config.py
+└── financeirane.config
+
+financeirane.config
+├── python-dotenv
+├── os
+└── logging
+
+logging_config.py
+└── financeirane.logging_config
+
+financeirane.logging_config
+├── logging
+├── os
+└── time.perf_counter
+```
+
+## Dependências Entre Módulos
+
+- `main.py -> logging_config.py`: configuração e helpers de observabilidade.
+- `main.py -> financeirane.interfaces.telegram_bot`: criação do bot e registro da interface Telegram.
+- `financeirane.interfaces.telegram_bot -> financeirane.config`: token, usuários autorizados e limite de mensagem.
+- `financeirane.interfaces.telegram_bot -> financeirane.ai_service`: interpretação da mensagem.
+- `financeirane.interfaces.telegram_bot -> financeirane.domain.models`: diferenciação entre registro e consulta.
+- `financeirane.interfaces.telegram_bot -> financeirane.sheets_service`: persistência e consulta.
+- `ai_service.py -> financeirane.ai_service`: wrapper temporário para a integração Gemini.
+- `financeirane.ai_service -> financeirane.config`: chave Gemini e categorias permitidas.
+- `financeirane.ai_service -> financeirane.domain.models`: criação de `RegistroFinanceiro`.
+- `financeirane.ai_service -> financeirane.domain.validators`: validação do registro antes de sair do serviço de IA.
+- `financeirane.ai_service -> financeirane.domain.exceptions`: erros de interpretação.
+- `financeirane.ai_service -> financeirane.logging_config`: duração de operações.
+- `sheets_service.py -> financeirane.sheets_service`: wrapper temporário para persistência e consulta.
+- `financeirane.sheets_service -> financeirane.config`: credenciais, nome da planilha, categorias, tipos e limite de parcelas.
+- `financeirane.sheets_service -> financeirane.logging_config`: duração de operações.
+- `financeirane.domain.validators -> financeirane.config`: categorias, tipos e limite de parcelas.
+
+Acoplamentos relevantes:
+
+- `financeirane.ai_service` instancia `genai.Client` em nível de módulo.
+- `financeirane.sheets_service` conhece diretamente `gspread` e o formato da planilha.
+- `financeirane.interfaces.telegram_bot` orquestra Telegram, IA e Google Sheets no mesmo handler.
+- `financeirane.domain.validators` depende de constantes de `financeirane.config`, mantendo temporariamente categorias e tipos na configuração.
+- `financeirane.config` valida variáveis obrigatórias durante import.
+- `ai_service.py`, `sheets_service.py`, `config.py`, `logging_config.py`, `models.py`, `validators.py` e `exceptions.py` na raiz são wrappers temporários de compatibilidade.
+
+## Responsabilidades Atuais
+
+| Módulo | Responsabilidade principal | Responsabilidades secundárias | Delimitação | Risco de manutenção |
+| --- | --- | --- | --- | --- |
+| `main.py` | Entry point | Configuração de logging e início do polling | Bem delimitado como composição mínima | Baixo |
+| `src/financeirane/interfaces/telegram_bot.py` | Interface Telegram e orquestração do fluxo | Autorização, comandos, mensagens de erro, criação do bot | Melhor delimitado, mas ainda concentra caso de uso e interface | Médio |
+| `src/financeirane/ai_service.py` | Interpretar mensagem com Gemini | Prompt, parsing JSON, criação e validação de `RegistroFinanceiro`, logs | Parcialmente delimitado; mistura integração externa e normalização de resposta | Médio |
+| `src/financeirane/sheets_service.py` | Persistir e consultar Google Sheets | Retry, backoff, cálculo de parcelas, sanitização, formatação de resposta | Funcional, mas mistura repositório, regras financeiras e apresentação | Alto |
+| `src/financeirane/domain/validators.py` | Validar regras de negócio | Uso de categorias/tipos configurados | Bem delimitado para o MVP, com dependência temporária de `financeirane.config` | Baixo |
+| `src/financeirane/domain/models.py` | Modelo de domínio | Nenhuma relevante | Bem delimitado | Baixo |
+| `src/financeirane/domain/exceptions.py` | Exceções customizadas | Nenhuma relevante | Bem delimitado | Baixo |
+| `src/financeirane/config.py` | Configuração via ambiente | Validação em import e constantes de domínio | Útil, mas com efeito colateral no import | Médio |
+| `src/financeirane/logging_config.py` | Configuração e helpers de logging | Mascaramento de IDs e medição de duração | Bem delimitado | Baixo |
+| `ai_service.py`, `sheets_service.py`, `config.py` e `logging_config.py` | Compatibilidade de imports antigos | Reexportam a implementação do pacote | Temporário e simples | Baixo |
+
+## Fronteiras Atuais
+
+A estrutura atual é uma arquitetura plana por módulos, com separação pragmática por responsabilidade. Ela não implementa Clean Architecture, Hexagonal Architecture ou DDD formal.
+
+O que existe de fato:
+
+- Domínio simples: `src/financeirane/domain/models.py`, `src/financeirane/domain/validators.py`, `src/financeirane/domain/exceptions.py`.
+- Interface Telegram e orquestração atual: `src/financeirane/interfaces/telegram_bot.py`.
+- Entry point: `main.py`.
+- Integração com IA: `src/financeirane/ai_service.py`, com wrapper temporário na raiz.
+- Integração com persistência: `src/financeirane/sheets_service.py`, com wrapper temporário na raiz.
+- Configuração e observabilidade: `src/financeirane/config.py`, `src/financeirane/logging_config.py`, com wrappers temporários na raiz.
+- Testes automatizados cobrindo fluxos principais e utilitários.
+
+## Dependências Externas
+
+| Dependência | Uso |
+| --- | --- |
+| `pyTelegramBotAPI` | Interface com Telegram. |
+| `google-genai` | Cliente Gemini. |
+| `gspread` | Acesso ao Google Sheets. |
+| `google-auth`, `google-auth-oauthlib` | Autenticação Google. |
+| `python-dotenv` | Carregamento de variáveis de ambiente. |
+| `pytest`, `pytest-cov` | Testes e cobertura. |
+| `ruff` | Lint e formatação. |
+| `pre-commit` | Hooks locais de qualidade. |
+
+## Pontos Fortes Atuais
+
+- Cobertura de testes alta nos módulos críticos.
+- Validação de domínio antes da persistência.
+- Exceções customizadas para interpretação da IA e entrada inválida.
+- Escrita em lote no Google Sheets para compras parceladas.
+- Cálculo financeiro em centavos inteiros, com distribuição dos centavos restantes.
+- Sanitização contra formula injection.
+- Retry com backoff para falhas transitórias do Google Sheets.
+- Logging estruturado com duração, operação e política de privacidade.
+- Autorização por `AUTHORIZED_CHAT_IDS`.
+- CI com Ruff, formatação e pytest.
+- Pre-commit configurado com Ruff.
+- Inicialização de `main.py` testável, sem polling no import.
+
+## Dívidas E Limitações
+
+### Alta Prioridade
+
+- `financeirane.sheets_service` mistura persistência, regra financeira, parsing de consulta e formatação de resposta.
+- `src/financeirane/interfaces/telegram_bot.py` ainda concentra interface Telegram e caso de uso, o que dificulta adicionar novas interfaces sem uma camada de aplicação.
+- Google Sheets é a persistência atual e não oferece transações reais.
+
+### Média Prioridade
+
+- `financeirane.ai_service` instancia o cliente Gemini em nível de módulo.
+- `financeirane.config` executa validação durante import.
+- Categorias e tipos ficam em `financeirane.config`, embora sejam conceitos de domínio.
+- A resposta de consulta ainda usa `dict`; registro usa `RegistroFinanceiro`.
+- Imports ainda assumem módulos na raiz, o que dificulta migração direta para pacote.
+
+### Baixa Prioridade
+
+- Estrutura plana é suficiente para o MVP, mas fica menos clara conforme novos recursos entrarem.
+- `scripts/teste_gemini.py` é utilitário operacional fora do pacote.
+- Algumas mensagens de usuário são montadas dentro de serviços, não em uma camada de apresentação.
+
+## Arquitetura-Alvo Incremental
+
+Uma estrutura futura possível, ajustada ao tamanho atual do projeto:
+
+```text
+src/
+└── financeirane/
+    ├── __init__.py
+    ├── main.py
+    ├── config.py
+    ├── logging_config.py
+    ├── domain/
+    │   ├── __init__.py
+    │   ├── models.py
+    │   ├── validators.py
+    │   └── exceptions.py
+    ├── services/
+    │   ├── __init__.py
+    │   ├── ai_service.py
+    │   └── finance_service.py
+    ├── repositories/
+    │   ├── __init__.py
+    │   └── sheets_repository.py
+    └── interfaces/
+        ├── __init__.py
+        └── telegram_bot.py
+```
+
+Essa estrutura não deve ser criada de uma vez. O alvo é separar responsabilidades gradualmente:
+
+- `domain/`: modelos, validações e exceções.
+- `services/`: casos de uso e integrações de aplicação.
+- `repositories/`: persistência em Google Sheets hoje, outra persistência no futuro.
+- `interfaces/`: Telegram hoje, outras interfaces no futuro.
+- `config.py` e `logging_config.py`: infraestrutura transversal mínima.
+
+## Plano De Migração Incremental
+
+### Fase 1: Preparar Imports Para Pacote
+
+- Objetivo: mapear imports atuais e reduzir dependência de imports implícitos da raiz.
+- Arquivos envolvidos: documentação, testes e eventualmente imports em módulos existentes.
+- Risco: baixo.
+- Testes que protegem: suíte completa de 168 testes.
+- Critério de conclusão: mapa de imports validado e estratégia definida.
+- Rollback: reverter apenas ajustes de imports se houver alteração.
+
+### Fase 2: Criar Pacote Vazio
+
+- Objetivo: criar `src/financeirane/__init__.py` sem mover lógica.
+- Arquivos envolvidos: `src/financeirane/__init__.py`, configuração de pytest/Ruff se necessário.
+- Risco: baixo.
+- Testes que protegem: pytest completo, Ruff e pre-commit.
+- Critério de conclusão: pacote importável sem alterar execução atual.
+- Rollback: remover diretório `src/`.
+- Status: estrutura mínima preparada em `src/financeirane/`, sem migração de lógica.
+
+### Fase 3: Migrar Domínio
+
+- Objetivo: mover `models.py`, `validators.py` e `exceptions.py` para `financeirane/domain/`.
+- Arquivos envolvidos: domínio, imports e testes correspondentes.
+- Risco: médio.
+- Testes que protegem: `tests/test_validators.py`, `tests/test_ai_service.py`, `tests/test_sheets_service.py`.
+- Critério de conclusão: domínio importável pelo pacote e comportamento preservado.
+- Rollback: restaurar arquivos na raiz e imports anteriores.
+- Status: concluída com wrappers temporários na raiz para compatibilidade.
+
+### Fase 4: Migrar Configuração E Logging
+
+- Objetivo: mover `config.py` e `logging_config.py` para o pacote, mantendo compatibilidade de execução.
+- Arquivos envolvidos: configuração, logging, entry point e testes.
+- Risco: médio.
+- Testes que protegem: `tests/test_config.py`, `tests/test_logging_config.py`, `tests/test_main_handlers.py`.
+- Critério de conclusão: `LOG_LEVEL`, `.env`, logging e validação de ambiente funcionando como antes.
+- Rollback: retornar módulos à raiz.
+- Status: concluída com `financeirane.config` e `financeirane.logging_config` como fonte real, mantendo wrappers temporários na raiz.
+
+### Fase 5: Migrar Integração Gemini
+
+- Objetivo: mover `ai_service.py` para o pacote, sem mudar prompt ou modelo.
+- Arquivos envolvidos: `ai_service.py`, imports e testes.
+- Risco: médio.
+- Testes que protegem: `tests/test_ai_service.py`.
+- Critério de conclusão: Gemini mockado nos testes, modelo preservado e sem chamada real.
+- Rollback: restaurar módulo e imports.
+- Status: concluída com `financeirane.ai_service` como fonte real, mantendo wrapper temporário na raiz.
+
+### Fase 6: Migrar Integração Google Sheets
+
+- Objetivo: mover `sheets_service.py` para o pacote, preservando regras financeiras já testadas.
+- Arquivos envolvidos: `sheets_service.py`, `src/financeirane/sheets_service.py` e testes.
+- Risco: alto.
+- Testes que protegem: `tests/test_sheets_service.py`, `tests/test_sheets_utils.py`.
+- Critério de conclusão: lote, retry, centavos, consulta e sanitização preservados.
+- Rollback: restaurar implementação na raiz.
+- Status: concluída com `financeirane.sheets_service` como fonte real, mantendo wrapper temporário na raiz.
+
+### Fase 7: Extrair Interface Telegram
+
+- Objetivo: mover a integração específica com Telegram para `financeirane.interfaces.telegram_bot`, deixando `main.py` como entry point.
+- Arquivos envolvidos: `main.py`, `src/financeirane/interfaces/telegram_bot.py` e testes.
+- Risco: alto.
+- Testes que protegem: `tests/test_main_handlers.py`.
+- Critério de conclusão: comportamento do bot preservado, sem chamadas reais em testes, e `main.py` iniciando apenas logging, criação do bot e polling.
+- Rollback: retornar lógica ao `main.py`.
+- Status: concluída com a interface Telegram extraída; serviço de aplicação dedicado fica para fase posterior.
+
+### Fase 8: Atualizar Entry Point
+
+- Objetivo: permitir execução por pacote sem quebrar `python main.py` até a transição ser concluída.
+- Arquivos envolvidos: `main.py`, possível `financeirane/main.py`, README.
+- Risco: médio.
+- Testes que protegem: testes de inicialização e CI.
+- Critério de conclusão: execução antiga e nova documentadas durante período de compatibilidade.
+- Rollback: manter apenas entry point atual.
+
+## Decisões Que Merecem ADR
+
+- Usar Google Sheets como persistência atual do MVP.
+- Manter Gemini como camada de interpretação, não como fonte de verdade de regras de negócio.
+- Validar dados da IA antes da persistência.
+- Registrar compras parceladas em lote com `insert_rows`.
+- Usar Telegram como adapter principal de interface.
+- Adotar layout `src/financeirane/` de forma incremental.
+- Criar ou não uma abstração de repositório antes de trocar persistência.
+- Manter logging em texto estruturado, sem JSON logs nesta etapa.
+- Manter autorização por `AUTHORIZED_CHAT_IDS` para uso pessoal.
+
+## O Que Não Fazer
+
+- Não fazer big-bang refactor.
+- Não mover todos os arquivos para `src/` em uma única mudança.
+- Não introduzir framework web sem necessidade real.
+- Não criar interfaces ou classes abstratas sem pelo menos duas implementações ou um caso concreto.
+- Não trocar Google Sheets apenas por estética arquitetural.
+- Não quebrar módulos só para aumentar pureza.
+- Não alterar prompt, modelo Gemini ou formato da planilha durante migração estrutural.
+- Não misturar migração arquitetural com mudanças de regra financeira.
+- Não reduzir testes, logging ou proteção contra vazamento de dados.
+
+## Critérios De Segurança Para Refatoração
+
+Toda fase de migração deve preservar:
+
+- suíte completa verde;
+- CI com Ruff, Ruff Format e pytest;
+- pre-commit passando;
+- nenhuma chamada real a Telegram, Gemini ou Google Sheets nos testes;
+- nenhuma exposição de `.env`, tokens, chaves, credenciais ou dados financeiros reais;
+- comportamento externo do bot;
+- formato da planilha;
+- escrita em lote de parcelas;
+- cálculo em centavos;
+- sanitização contra formula injection;
+- política de logs sem dados sensíveis.
+
+Antes de cada fase:
+
+```bash
+venv/bin/python -m pytest -v
+venv/bin/python -m ruff check .
+venv/bin/python -m ruff format --check .
+venv/bin/python -m pre_commit run --all-files
+git diff --check
+```
+
+Depois de cada fase, comparar o comportamento observado do bot em um ambiente de teste controlado antes de promover a mudança.

@@ -41,7 +41,7 @@ A FinanceirAne interpreta a mensagem, valida os campos e grava os dados de forma
 - Interpretação de linguagem natural com Google Gemini.
 - Conversão da resposta da IA para o modelo de domínio `RegistroFinanceiro`.
 - Validação de data, valor, tipo, categoria, descrição e parcelas antes da persistência.
-- Categorias permitidas centralizadas em `config.py`.
+- Categorias permitidas centralizadas em `financeirane.config`.
 - Suporte a compras parceladas.
 - Cálculo de parcelas usando centavos inteiros para evitar erros de ponto flutuante.
 - Distribuição dos centavos restantes entre as primeiras parcelas.
@@ -60,26 +60,31 @@ Usuário no Telegram
         ↓
 main.py
         ↓
-ai_service.py
+financeirane.interfaces.telegram_bot
         ↓
-models.py + validators.py + exceptions.py
+financeirane.ai_service
         ↓
-sheets_service.py
+financeirane.domain
+        ↓
+financeirane.sheets_service
         ↓
 Google Sheets
 ```
 
 | Módulo | Responsabilidade |
 | --- | --- |
-| `main.py` | Inicializa o bot, registra handlers e orquestra os fluxos de registro e consulta. |
-| `config.py` | Carrega variáveis de ambiente e constantes da aplicação. |
-| `ai_service.py` | Envia mensagens ao Gemini, exige JSON estruturado e instancia `RegistroFinanceiro`. |
-| `models.py` | Define modelos de domínio, como a dataclass `RegistroFinanceiro`. |
-| `validators.py` | Valida regras de negócio antes da persistência. |
-| `exceptions.py` | Centraliza exceções customizadas do domínio e da IA. |
-| `sheets_service.py` | Conecta ao Google Sheets, consulta registros e persiste movimentações. |
+| `main.py` | Entry point: configura logging, cria o bot e inicia o polling. |
+| `src/financeirane/interfaces/telegram_bot.py` | Registra handlers, trata mensagens/comandos do Telegram e orquestra IA/Sheets. |
+| `src/financeirane/ai_service.py` | Envia mensagens ao Gemini, exige JSON estruturado e instancia `RegistroFinanceiro`. |
+| `src/financeirane/config.py` | Carrega variáveis de ambiente e constantes da aplicação. |
+| `src/financeirane/logging_config.py` | Configura logging, mascaramento de IDs e helpers de duração. |
+| `src/financeirane/sheets_service.py` | Conecta ao Google Sheets, consulta registros e persiste movimentações. |
+| `src/financeirane/domain/` | Define modelos, validações e exceções de domínio. |
+| `ai_service.py`, `sheets_service.py`, `config.py`, `logging_config.py`, `models.py`, `validators.py`, `exceptions.py` | Wrappers temporários de compatibilidade para imports antigos. |
 | `tests/` | Contém testes automatizados com pytest. |
 | `scripts/teste_gemini.py` | Lista modelos disponíveis para a chave Gemini configurada. |
+
+Para uma visão técnica detalhada, incluindo acoplamentos atuais e plano incremental de migração para `src/financeirane/`, consulte [`docs/architecture.md`](docs/architecture.md).
 
 ### Infraestrutura
 
@@ -119,12 +124,31 @@ As credenciais permanecem armazenadas localmente na máquina/instância e não f
 ├── models.py
 ├── validators.py
 ├── exceptions.py
+├── src/
+│   └── financeirane/
+│       ├── __init__.py
+│       ├── ai_service.py
+│       ├── config.py
+│       ├── logging_config.py
+│       ├── sheets_service.py
+│       ├── interfaces/
+│       │   ├── __init__.py
+│       │   └── telegram_bot.py
+│       └── domain/
+│           ├── __init__.py
+│           ├── exceptions.py
+│           ├── models.py
+│           └── validators.py
 ├── scripts/
 │   └── teste_gemini.py
 ├── tests/
 │   ├── __init__.py
+│   ├── test_ai_service.py
 │   ├── test_config.py
+│   ├── test_logging_config.py
 │   ├── test_main_handlers.py
+│   ├── test_package_import.py
+│   ├── test_sheets_service.py
 │   ├── test_sheets_utils.py
 │   └── test_validators.py
 ├── requirements.txt
@@ -165,6 +189,12 @@ Instale as dependências:
 
 ```bash
 python -m pip install -r requirements.txt
+```
+
+Instale o pacote em modo editável para desenvolvimento local com `src layout`:
+
+```bash
+python -m pip install -e .
 ```
 
 Instale os hooks de pre-commit:
@@ -370,7 +400,7 @@ python -m compileall .
 ```
 
 ```bash
-python -m py_compile main.py ai_service.py sheets_service.py models.py validators.py exceptions.py
+python -m py_compile main.py ai_service.py sheets_service.py models.py validators.py exceptions.py config.py logging_config.py src/financeirane/ai_service.py src/financeirane/config.py src/financeirane/logging_config.py src/financeirane/sheets_service.py src/financeirane/interfaces/telegram_bot.py src/financeirane/domain/models.py src/financeirane/domain/validators.py src/financeirane/domain/exceptions.py
 ```
 
 Áreas cobertas atualmente:
@@ -407,13 +437,13 @@ Se `AUTHORIZED_CHAT_IDS` estiver vazio, o bot registra um aviso em log e ignora 
 
 ```text
 1. Usuário envia mensagem no Telegram
-2. main.py verifica se o usuário está autorizado
-3. main.py trata comandos rápidos, mensagens vazias e limite de tamanho
-4. ai_service.py interpreta a mensagem com Gemini
-5. ai_service.py converte registros em RegistroFinanceiro
-6. validators.py valida as regras de negócio
-7. sheets_service.py registra ou consulta dados no Google Sheets
-8. main.py envia a resposta ao usuário no Telegram
+2. financeirane.interfaces.telegram_bot verifica se o usuário está autorizado
+3. financeirane.interfaces.telegram_bot trata comandos rápidos, mensagens vazias e limite de tamanho
+4. financeirane.ai_service interpreta a mensagem com Gemini
+5. financeirane.ai_service converte registros em RegistroFinanceiro
+6. financeirane.domain.validators valida as regras de negócio
+7. financeirane.sheets_service registra ou consulta dados no Google Sheets
+8. financeirane.interfaces.telegram_bot envia a resposta ao usuário no Telegram
 ```
 
 ## 🛡️ Boas práticas
