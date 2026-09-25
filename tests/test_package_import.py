@@ -11,6 +11,7 @@ from exceptions import InterpretacaoIAError as InterpretacaoIAErrorCompat
 from financeirane.domain.exceptions import InterpretacaoIAError
 from financeirane.domain.models import RegistroFinanceiro
 from financeirane.domain.validators import validar_registro
+from financeirane.interfaces import telegram_bot
 from logging_config import configurar_logging as configurar_logging_compat
 from logging_config import obter_log_level as obter_log_level_compat
 from models import RegistroFinanceiro as RegistroFinanceiroCompat
@@ -31,6 +32,7 @@ def test_domain_package_importavel():
     assert RegistroFinanceiro.__name__ == "RegistroFinanceiro"
     assert validar_registro.__name__ == "validar_registro"
     assert InterpretacaoIAError.__name__ == "InterpretacaoIAError"
+    assert telegram_bot.registrar_handlers.__name__ == "registrar_handlers"
 
 
 def test_wrappers_temporarios_preservam_identidade():

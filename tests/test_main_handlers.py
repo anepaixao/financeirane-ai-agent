@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 import main
+from financeirane.interfaces import telegram_bot
 
 AUTHORIZED_USER_ID = 123456789
 CHAT_ID = 987654321
@@ -53,17 +54,20 @@ def preparar_handler():
     }
 
     modulos = {
-        "ai_service": criar_modulo(
-            "ai_service", interpretar_mensagem=dependencias["interpretar_mensagem"]
+        "financeirane.ai_service": criar_modulo(
+            "financeirane.ai_service",
+            interpretar_mensagem=dependencias["interpretar_mensagem"],
         ),
-        "config": criar_modulo(
-            "config",
+        "financeirane.config": criar_modulo(
+            "financeirane.config",
             AUTHORIZED_CHAT_IDS={AUTHORIZED_USER_ID},
             MAX_MESSAGE_LENGTH=MAX_MESSAGE_LENGTH,
         ),
-        "models": criar_modulo("models", RegistroFinanceiro=RegistroFinanceiroFake),
-        "sheets_service": criar_modulo(
-            "sheets_service",
+        "financeirane.domain.models": criar_modulo(
+            "financeirane.domain.models", RegistroFinanceiro=RegistroFinanceiroFake
+        ),
+        "financeirane.sheets_service": criar_modulo(
+            "financeirane.sheets_service",
             consultar_gastos_mes=dependencias["consultar_gastos_mes"],
             registrar_movimentacao=dependencias["registrar_movimentacao"],
         ),
@@ -72,7 +76,7 @@ def preparar_handler():
     bot = FakeBot()
 
     with patch.dict(sys.modules, modulos):
-        main.registrar_handlers(bot, planilha)
+        telegram_bot.registrar_handlers(bot, planilha)
 
     return bot, dependencias
 
@@ -287,9 +291,9 @@ def test_criar_bot_conecta_planilha_registra_handlers_e_nao_inicia_polling():
     bot = FakeBot()
     telebot_modulo = criar_modulo("telebot", TeleBot=Mock(return_value=bot))
     planilha = object()
-    config_modulo = criar_modulo("config", TELEGRAM_TOKEN="token-ficticio")
+    config_modulo = criar_modulo("financeirane.config", TELEGRAM_TOKEN="token-ficticio")
     sheets_modulo = criar_modulo(
-        "sheets_service", conectar_planilha=Mock(return_value=planilha)
+        "financeirane.sheets_service", conectar_planilha=Mock(return_value=planilha)
     )
 
     with (
@@ -297,13 +301,13 @@ def test_criar_bot_conecta_planilha_registra_handlers_e_nao_inicia_polling():
             sys.modules,
             {
                 "telebot": telebot_modulo,
-                "config": config_modulo,
-                "sheets_service": sheets_modulo,
+                "financeirane.config": config_modulo,
+                "financeirane.sheets_service": sheets_modulo,
             },
         ),
-        patch.object(main, "registrar_handlers") as registrar_handlers,
+        patch.object(telegram_bot, "registrar_handlers") as registrar_handlers,
     ):
-        resultado = main.criar_bot()
+        resultado = telegram_bot.criar_bot()
 
     assert resultado is bot
     sheets_modulo.conectar_planilha.assert_called_once_with()
