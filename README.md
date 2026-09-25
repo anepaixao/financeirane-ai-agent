@@ -60,6 +60,8 @@ Usuário no Telegram
         ↓
 main.py
         ↓
+financeirane.interfaces.telegram_bot
+        ↓
 financeirane.ai_service
         ↓
 financeirane.domain
@@ -71,7 +73,8 @@ Google Sheets
 
 | Módulo | Responsabilidade |
 | --- | --- |
-| `main.py` | Inicializa o bot, registra handlers e orquestra os fluxos de registro e consulta. |
+| `main.py` | Entry point: configura logging, cria o bot e inicia o polling. |
+| `src/financeirane/interfaces/telegram_bot.py` | Registra handlers, trata mensagens/comandos do Telegram e orquestra IA/Sheets. |
 | `src/financeirane/ai_service.py` | Envia mensagens ao Gemini, exige JSON estruturado e instancia `RegistroFinanceiro`. |
 | `src/financeirane/config.py` | Carrega variáveis de ambiente e constantes da aplicação. |
 | `src/financeirane/logging_config.py` | Configura logging, mascaramento de IDs e helpers de duração. |
@@ -128,6 +131,9 @@ As credenciais permanecem armazenadas localmente na máquina/instância e não f
 │       ├── config.py
 │       ├── logging_config.py
 │       ├── sheets_service.py
+│       ├── interfaces/
+│       │   ├── __init__.py
+│       │   └── telegram_bot.py
 │       └── domain/
 │           ├── __init__.py
 │           ├── exceptions.py
@@ -394,7 +400,7 @@ python -m compileall .
 ```
 
 ```bash
-python -m py_compile main.py ai_service.py sheets_service.py models.py validators.py exceptions.py config.py logging_config.py src/financeirane/ai_service.py src/financeirane/config.py src/financeirane/logging_config.py src/financeirane/sheets_service.py src/financeirane/domain/models.py src/financeirane/domain/validators.py src/financeirane/domain/exceptions.py
+python -m py_compile main.py ai_service.py sheets_service.py models.py validators.py exceptions.py config.py logging_config.py src/financeirane/ai_service.py src/financeirane/config.py src/financeirane/logging_config.py src/financeirane/sheets_service.py src/financeirane/interfaces/telegram_bot.py src/financeirane/domain/models.py src/financeirane/domain/validators.py src/financeirane/domain/exceptions.py
 ```
 
 Áreas cobertas atualmente:
@@ -431,13 +437,13 @@ Se `AUTHORIZED_CHAT_IDS` estiver vazio, o bot registra um aviso em log e ignora 
 
 ```text
 1. Usuário envia mensagem no Telegram
-2. main.py verifica se o usuário está autorizado
-3. main.py trata comandos rápidos, mensagens vazias e limite de tamanho
-4. ai_service.py interpreta a mensagem com Gemini
-5. ai_service.py converte registros em RegistroFinanceiro
+2. financeirane.interfaces.telegram_bot verifica se o usuário está autorizado
+3. financeirane.interfaces.telegram_bot trata comandos rápidos, mensagens vazias e limite de tamanho
+4. financeirane.ai_service interpreta a mensagem com Gemini
+5. financeirane.ai_service converte registros em RegistroFinanceiro
 6. financeirane.domain.validators valida as regras de negócio
 7. financeirane.sheets_service registra ou consulta dados no Google Sheets
-8. main.py envia a resposta ao usuário no Telegram
+8. financeirane.interfaces.telegram_bot envia a resposta ao usuário no Telegram
 ```
 
 ## 🛡️ Boas práticas

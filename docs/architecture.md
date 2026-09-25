@@ -15,7 +15,9 @@ Usuário no Telegram
         ↓
 main.py
         ↓
-ai_service.py
+financeirane.interfaces.telegram_bot
+        ↓
+financeirane.ai_service
         ↓
 financeirane.domain.models + financeirane.domain.validators
         ↓
@@ -31,7 +33,9 @@ Usuário no Telegram
         ↓
 main.py
         ↓
-ai_service.py
+financeirane.interfaces.telegram_bot
+        ↓
+financeirane.ai_service
         ↓
 dict com intenção consultar, mês e ano
         ↓
@@ -46,18 +50,24 @@ resposta formatada para Telegram
 
 - `main.py`: entry point da aplicação.
 - `main.main()`: configura logging, cria o bot e inicia `infinity_polling()`.
-- `main.criar_bot()`: conecta ao Google Sheets, cria `telebot.TeleBot` e registra handlers.
-- `main.registrar_handlers(bot, planilha)`: registra o handler que processa mensagens recebidas.
+- `main.main()`: delega criação do bot e inicia `infinity_polling()`.
+- `financeirane.interfaces.telegram_bot.criar_bot()`: conecta ao Google Sheets, cria `telebot.TeleBot` e registra handlers.
+- `financeirane.interfaces.telegram_bot.registrar_handlers(bot, planilha)`: registra o handler que processa mensagens recebidas.
 
 ## Mapa De Módulos
 
 ```text
 main.py
 ├── logging_config.py
-├── config.py
-├── ai_service.py
-├── models.py
-└── sheets_service.py
+└── financeirane.interfaces.telegram_bot
+
+financeirane.interfaces.telegram_bot
+├── financeirane.ai_service
+├── financeirane.config
+├── financeirane.domain.models
+├── financeirane.logging_config
+├── financeirane.sheets_service
+└── telebot
 
 ai_service.py
 └── financeirane.ai_service
@@ -105,10 +115,11 @@ financeirane.logging_config
 ## Dependências Entre Módulos
 
 - `main.py -> logging_config.py`: configuração e helpers de observabilidade.
-- `main.py -> config.py`: token, usuários autorizados e limite de mensagem.
-- `main.py -> ai_service.py`: interpretação da mensagem via wrapper temporário.
-- `main.py -> models.py`: diferenciação entre registro e consulta via wrapper temporário.
-- `main.py -> sheets_service.py`: persistência e consulta via wrapper temporário.
+- `main.py -> financeirane.interfaces.telegram_bot`: criação do bot e registro da interface Telegram.
+- `financeirane.interfaces.telegram_bot -> financeirane.config`: token, usuários autorizados e limite de mensagem.
+- `financeirane.interfaces.telegram_bot -> financeirane.ai_service`: interpretação da mensagem.
+- `financeirane.interfaces.telegram_bot -> financeirane.domain.models`: diferenciação entre registro e consulta.
+- `financeirane.interfaces.telegram_bot -> financeirane.sheets_service`: persistência e consulta.
 - `ai_service.py -> financeirane.ai_service`: wrapper temporário para a integração Gemini.
 - `financeirane.ai_service -> financeirane.config`: chave Gemini e categorias permitidas.
 - `financeirane.ai_service -> financeirane.domain.models`: criação de `RegistroFinanceiro`.
@@ -124,7 +135,7 @@ Acoplamentos relevantes:
 
 - `financeirane.ai_service` instancia `genai.Client` em nível de módulo.
 - `financeirane.sheets_service` conhece diretamente `gspread` e o formato da planilha.
-- `main.py` orquestra Telegram, IA e Google Sheets no mesmo handler.
+- `financeirane.interfaces.telegram_bot` orquestra Telegram, IA e Google Sheets no mesmo handler.
 - `financeirane.domain.validators` depende de constantes de `financeirane.config`, mantendo temporariamente categorias e tipos na configuração.
 - `financeirane.config` valida variáveis obrigatórias durante import.
 - `ai_service.py`, `sheets_service.py`, `config.py`, `logging_config.py`, `models.py`, `validators.py` e `exceptions.py` na raiz são wrappers temporários de compatibilidade.
@@ -133,7 +144,8 @@ Acoplamentos relevantes:
 
 | Módulo | Responsabilidade principal | Responsabilidades secundárias | Delimitação | Risco de manutenção |
 | --- | --- | --- | --- | --- |
-| `main.py` | Interface Telegram e orquestração do fluxo | Autorização, comandos, mensagens de erro, inicialização | Boa para o tamanho atual, mas concentra interface e caso de uso | Médio |
+| `main.py` | Entry point | Configuração de logging e início do polling | Bem delimitado como composição mínima | Baixo |
+| `src/financeirane/interfaces/telegram_bot.py` | Interface Telegram e orquestração do fluxo | Autorização, comandos, mensagens de erro, criação do bot | Melhor delimitado, mas ainda concentra caso de uso e interface | Médio |
 | `src/financeirane/ai_service.py` | Interpretar mensagem com Gemini | Prompt, parsing JSON, criação e validação de `RegistroFinanceiro`, logs | Parcialmente delimitado; mistura integração externa e normalização de resposta | Médio |
 | `src/financeirane/sheets_service.py` | Persistir e consultar Google Sheets | Retry, backoff, cálculo de parcelas, sanitização, formatação de resposta | Funcional, mas mistura repositório, regras financeiras e apresentação | Alto |
 | `src/financeirane/domain/validators.py` | Validar regras de negócio | Uso de categorias/tipos configurados | Bem delimitado para o MVP, com dependência temporária de `financeirane.config` | Baixo |
@@ -150,7 +162,8 @@ A estrutura atual é uma arquitetura plana por módulos, com separação pragmá
 O que existe de fato:
 
 - Domínio simples: `src/financeirane/domain/models.py`, `src/financeirane/domain/validators.py`, `src/financeirane/domain/exceptions.py`.
-- Aplicação/orquestração: `main.py`.
+- Interface Telegram e orquestração atual: `src/financeirane/interfaces/telegram_bot.py`.
+- Entry point: `main.py`.
 - Integração com IA: `src/financeirane/ai_service.py`, com wrapper temporário na raiz.
 - Integração com persistência: `src/financeirane/sheets_service.py`, com wrapper temporário na raiz.
 - Configuração e observabilidade: `src/financeirane/config.py`, `src/financeirane/logging_config.py`, com wrappers temporários na raiz.
@@ -189,7 +202,7 @@ O que existe de fato:
 ### Alta Prioridade
 
 - `financeirane.sheets_service` mistura persistência, regra financeira, parsing de consulta e formatação de resposta.
-- `main.py` concentra interface Telegram e caso de uso, o que dificulta adicionar novas interfaces.
+- `src/financeirane/interfaces/telegram_bot.py` ainda concentra interface Telegram e caso de uso, o que dificulta adicionar novas interfaces sem uma camada de aplicação.
 - Google Sheets é a persistência atual e não oferece transações reais.
 
 ### Média Prioridade
@@ -303,14 +316,15 @@ Essa estrutura não deve ser criada de uma vez. O alvo é separar responsabilida
 - Rollback: restaurar implementação na raiz.
 - Status: concluída com `financeirane.sheets_service` como fonte real, mantendo wrapper temporário na raiz.
 
-### Fase 7: Separar Orquestração Da Interface Telegram
+### Fase 7: Extrair Interface Telegram
 
-- Objetivo: extrair caso de uso de registro/consulta para serviço de aplicação, deixando Telegram como adapter.
-- Arquivos envolvidos: `main.py`, possível `interfaces/telegram_bot.py`, possível `services/finance_service.py`.
+- Objetivo: mover a integração específica com Telegram para `financeirane.interfaces.telegram_bot`, deixando `main.py` como entry point.
+- Arquivos envolvidos: `main.py`, `src/financeirane/interfaces/telegram_bot.py` e testes.
 - Risco: alto.
-- Testes que protegem: `tests/test_main_handlers.py`, testes de serviços novos.
-- Critério de conclusão: comportamento do bot preservado, sem chamadas reais em testes.
+- Testes que protegem: `tests/test_main_handlers.py`.
+- Critério de conclusão: comportamento do bot preservado, sem chamadas reais em testes, e `main.py` iniciando apenas logging, criação do bot e polling.
 - Rollback: retornar lógica ao `main.py`.
+- Status: concluída com a interface Telegram extraída; serviço de aplicação dedicado fica para fase posterior.
 
 ### Fase 8: Atualizar Entry Point
 
