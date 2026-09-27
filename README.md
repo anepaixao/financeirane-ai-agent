@@ -58,7 +58,9 @@ A FinanceirAne interpreta a mensagem, valida os campos e grava os dados de forma
 ```text
 Usuário no Telegram
         ↓
-main.py
+main.py ou python -m financeirane
+        ↓
+financeirane.main
         ↓
 financeirane.interfaces.telegram_bot
         ↓
@@ -73,7 +75,9 @@ Google Sheets
 
 | Módulo | Responsabilidade |
 | --- | --- |
-| `main.py` | Entry point: configura logging, cria o bot e inicia o polling. |
+| `main.py` | Entry point de compatibilidade que delega para `financeirane.main`. |
+| `src/financeirane/main.py` | Entry point real do pacote: configura logging, cria o bot e inicia o polling. |
+| `src/financeirane/__main__.py` | Permite executar o pacote com `python -m financeirane`. |
 | `src/financeirane/interfaces/telegram_bot.py` | Registra handlers, trata mensagens/comandos do Telegram e orquestra IA/Sheets. |
 | `src/financeirane/ai_service.py` | Envia mensagens ao Gemini, exige JSON estruturado e instancia `RegistroFinanceiro`. |
 | `src/financeirane/config.py` | Carrega variáveis de ambiente e constantes da aplicação. |
@@ -127,9 +131,11 @@ As credenciais permanecem armazenadas localmente na máquina/instância e não f
 ├── src/
 │   └── financeirane/
 │       ├── __init__.py
+│       ├── __main__.py
 │       ├── ai_service.py
 │       ├── config.py
 │       ├── logging_config.py
+│       ├── main.py
 │       ├── sheets_service.py
 │       ├── interfaces/
 │       │   ├── __init__.py
@@ -319,7 +325,13 @@ O Google Sheets não oferece transação real nem rollback. A escrita em lote me
 
 ## ▶️ Como executar
 
-Com o ambiente virtual ativo:
+Com o ambiente virtual ativo, execute pelo pacote:
+
+```bash
+python -m financeirane
+```
+
+O entry point antigo continua disponível por compatibilidade:
 
 ```bash
 python main.py
@@ -400,7 +412,7 @@ python -m compileall .
 ```
 
 ```bash
-python -m py_compile main.py ai_service.py sheets_service.py models.py validators.py exceptions.py config.py logging_config.py src/financeirane/ai_service.py src/financeirane/config.py src/financeirane/logging_config.py src/financeirane/sheets_service.py src/financeirane/interfaces/telegram_bot.py src/financeirane/domain/models.py src/financeirane/domain/validators.py src/financeirane/domain/exceptions.py
+python -m py_compile main.py ai_service.py sheets_service.py models.py validators.py exceptions.py config.py logging_config.py src/financeirane/ai_service.py src/financeirane/config.py src/financeirane/logging_config.py src/financeirane/sheets_service.py src/financeirane/main.py src/financeirane/__main__.py src/financeirane/interfaces/telegram_bot.py src/financeirane/domain/models.py src/financeirane/domain/validators.py src/financeirane/domain/exceptions.py
 ```
 
 Áreas cobertas atualmente:

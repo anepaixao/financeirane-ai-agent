@@ -2,6 +2,7 @@ import financeirane
 import financeirane.ai_service as package_ai_service
 import financeirane.config as package_config
 import financeirane.logging_config as package_logging_config
+import financeirane.main as package_main
 import financeirane.sheets_service as package_sheets_service
 from ai_service import interpretar_mensagem as interpretar_mensagem_compat
 from ai_service import montar_system_prompt as montar_system_prompt_compat
@@ -26,6 +27,7 @@ from validators import validar_registro as validar_registro_compat
 
 def test_financeirane_package_importavel():
     assert financeirane.__file__ is not None
+    assert package_main.main.__name__ == "main"
 
 
 def test_domain_package_importavel():

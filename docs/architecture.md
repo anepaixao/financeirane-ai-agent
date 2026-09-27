@@ -48,9 +48,9 @@ resposta formatada para Telegram
 
 ## Pontos De Entrada
 
-- `main.py`: entry point da aplicação.
-- `main.main()`: configura logging, cria o bot e inicia `infinity_polling()`.
-- `main.main()`: delega criação do bot e inicia `infinity_polling()`.
+- `main.py`: entry point de compatibilidade para execução antiga.
+- `financeirane.main.main()`: configura logging, cria o bot e inicia `infinity_polling()`.
+- `financeirane.__main__`: delega para `financeirane.main.main()` para suportar `python -m financeirane`.
 - `financeirane.interfaces.telegram_bot.criar_bot()`: conecta ao Google Sheets, cria `telebot.TeleBot` e registra handlers.
 - `financeirane.interfaces.telegram_bot.registrar_handlers(bot, planilha)`: registra o handler que processa mensagens recebidas.
 
@@ -58,7 +58,13 @@ resposta formatada para Telegram
 
 ```text
 main.py
-├── logging_config.py
+└── financeirane.main
+
+financeirane.__main__
+└── financeirane.main
+
+financeirane.main
+├── financeirane.logging_config
 └── financeirane.interfaces.telegram_bot
 
 financeirane.interfaces.telegram_bot
@@ -114,8 +120,10 @@ financeirane.logging_config
 
 ## Dependências Entre Módulos
 
-- `main.py -> logging_config.py`: configuração e helpers de observabilidade.
-- `main.py -> financeirane.interfaces.telegram_bot`: criação do bot e registro da interface Telegram.
+- `main.py -> financeirane.main`: compatibilidade com o entry point antigo.
+- `financeirane.__main__ -> financeirane.main`: suporte a `python -m financeirane`.
+- `financeirane.main -> financeirane.logging_config`: configuração de logging.
+- `financeirane.main -> financeirane.interfaces.telegram_bot`: criação do bot e registro da interface Telegram.
 - `financeirane.interfaces.telegram_bot -> financeirane.config`: token, usuários autorizados e limite de mensagem.
 - `financeirane.interfaces.telegram_bot -> financeirane.ai_service`: interpretação da mensagem.
 - `financeirane.interfaces.telegram_bot -> financeirane.domain.models`: diferenciação entre registro e consulta.
@@ -144,7 +152,8 @@ Acoplamentos relevantes:
 
 | Módulo | Responsabilidade principal | Responsabilidades secundárias | Delimitação | Risco de manutenção |
 | --- | --- | --- | --- | --- |
-| `main.py` | Entry point | Configuração de logging e início do polling | Bem delimitado como composição mínima | Baixo |
+| `src/financeirane/main.py` | Entry point real do pacote | Configuração de logging e início do polling | Bem delimitado como composição mínima | Baixo |
+| `main.py` | Compatibilidade de execução antiga | Delega para `financeirane.main` | Temporário e simples | Baixo |
 | `src/financeirane/interfaces/telegram_bot.py` | Interface Telegram e orquestração do fluxo | Autorização, comandos, mensagens de erro, criação do bot | Melhor delimitado, mas ainda concentra caso de uso e interface | Médio |
 | `src/financeirane/ai_service.py` | Interpretar mensagem com Gemini | Prompt, parsing JSON, criação e validação de `RegistroFinanceiro`, logs | Parcialmente delimitado; mistura integração externa e normalização de resposta | Médio |
 | `src/financeirane/sheets_service.py` | Persistir e consultar Google Sheets | Retry, backoff, cálculo de parcelas, sanitização, formatação de resposta | Funcional, mas mistura repositório, regras financeiras e apresentação | Alto |
@@ -163,7 +172,7 @@ O que existe de fato:
 
 - Domínio simples: `src/financeirane/domain/models.py`, `src/financeirane/domain/validators.py`, `src/financeirane/domain/exceptions.py`.
 - Interface Telegram e orquestração atual: `src/financeirane/interfaces/telegram_bot.py`.
-- Entry point: `main.py`.
+- Entry point real: `src/financeirane/main.py`; `main.py` permanece como compatibilidade.
 - Integração com IA: `src/financeirane/ai_service.py`, com wrapper temporário na raiz.
 - Integração com persistência: `src/financeirane/sheets_service.py`, com wrapper temporário na raiz.
 - Configuração e observabilidade: `src/financeirane/config.py`, `src/financeirane/logging_config.py`, com wrappers temporários na raiz.
@@ -328,12 +337,13 @@ Essa estrutura não deve ser criada de uma vez. O alvo é separar responsabilida
 
 ### Fase 8: Atualizar Entry Point
 
-- Objetivo: permitir execução por pacote sem quebrar `python main.py` até a transição ser concluída.
-- Arquivos envolvidos: `main.py`, possível `financeirane/main.py`, README.
+- Objetivo: permitir execução por pacote sem quebrar `python main.py`.
+- Arquivos envolvidos: `main.py`, `src/financeirane/main.py`, `src/financeirane/__main__.py`, README e testes.
 - Risco: médio.
 - Testes que protegem: testes de inicialização e CI.
-- Critério de conclusão: execução antiga e nova documentadas durante período de compatibilidade.
-- Rollback: manter apenas entry point atual.
+- Critério de conclusão: `python main.py` e `python -m financeirane` suportados, com implementação real única em `financeirane.main`.
+- Rollback: remover `financeirane.__main__` e restaurar implementação no entry point antigo.
+- Status: concluída com `financeirane.main` como fonte real e `main.py` como wrapper de compatibilidade.
 
 ## Decisões Que Merecem ADR
 

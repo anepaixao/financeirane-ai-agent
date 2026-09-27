@@ -1,10 +1,13 @@
+import importlib
 import logging
+import runpy
 import sys
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
 
 import pytest
 
+import financeirane.main as package_main
 import main
 from financeirane.interfaces import telegram_bot
 
@@ -316,15 +319,42 @@ def test_criar_bot_conecta_planilha_registra_handlers_e_nao_inicia_polling():
     assert not hasattr(bot, "infinity_polling") or not bot.infinity_polling.called
 
 
-def test_main_configura_logging_cria_bot_e_inicia_polling(monkeypatch):
+def test_importar_main_nao_inicia_polling(monkeypatch):
+    iniciar = Mock()
+    monkeypatch.setattr(package_main, "main", iniciar)
+
+    importlib.reload(main)
+
+    iniciar.assert_not_called()
+
+
+def test_package_main_configura_logging_cria_bot_e_inicia_polling(monkeypatch):
     bot = SimpleNamespace(infinity_polling=Mock())
     configurar_logging = Mock()
     criar_bot = Mock(return_value=bot)
-    monkeypatch.setattr(main, "configurar_logging", configurar_logging)
-    monkeypatch.setattr(main, "criar_bot", criar_bot)
+    monkeypatch.setattr(package_main, "configurar_logging", configurar_logging)
+    monkeypatch.setattr(package_main, "criar_bot", criar_bot)
 
-    main.main()
+    package_main.main()
 
     configurar_logging.assert_called_once_with()
     criar_bot.assert_called_once_with()
     bot.infinity_polling.assert_called_once_with()
+
+
+def test_root_main_delega_para_package_main(monkeypatch):
+    iniciar = Mock()
+    monkeypatch.setattr(main.package_main, "main", iniciar)
+
+    main.main()
+
+    iniciar.assert_called_once_with()
+
+
+def test_python_m_financeirane_delega_para_package_main(monkeypatch):
+    iniciar = Mock()
+    monkeypatch.setattr(package_main, "main", iniciar)
+
+    runpy.run_module("financeirane", run_name="__main__")
+
+    iniciar.assert_called_once_with()
