@@ -1,13 +1,11 @@
-from financeirane.interfaces.telegram_bot import criar_bot, registrar_handlers
-from logging_config import configurar_logging
+from financeirane import main as package_main
+from financeirane.main import criar_bot, registrar_handlers
 
 __all__ = ["criar_bot", "main", "registrar_handlers"]
 
 
 def main():
-    configurar_logging()
-    bot = criar_bot()
-    bot.infinity_polling()
+    package_main.main()
 
 
 if __name__ == "__main__":
