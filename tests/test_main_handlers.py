@@ -2,6 +2,8 @@ import importlib
 import logging
 import runpy
 import sys
+from dataclasses import dataclass
+from datetime import datetime as DateTime
 from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -29,8 +31,14 @@ class FakeBot:
         return decorator
 
 
+@dataclass
 class RegistroFinanceiroFake:
-    pass
+    data: str = "15/09/2026"
+    tipo: str = "gasto"
+    valor_total: float = 20.0
+    descricao: str = "Mercado"
+    parcelas: int = 1
+    categoria: str = "Outros"
 
 
 def criar_modulo(nome, **atributos):
@@ -178,9 +186,11 @@ def test_usuario_autorizado_com_registro_chama_ia_e_planilha():
     dependencias["interpretar_mensagem"].return_value = registro
     dependencias["registrar_movimentacao"].return_value = "Registrado com sucesso"
 
-    bot.handler(criar_mensagem("gastei 20 no mercado"))
+    bot.handler(criar_mensagem("gastei 20 no mercado em 15/09/2026"))
 
-    dependencias["interpretar_mensagem"].assert_called_once_with("gastei 20 no mercado")
+    dependencias["interpretar_mensagem"].assert_called_once_with(
+        "gastei 20 no mercado em 15/09/2026"
+    )
     dependencias["registrar_movimentacao"].assert_called_once_with(
         dependencias["planilha"], registro
     )
@@ -189,6 +199,102 @@ def test_usuario_autorizado_com_registro_chama_ia_e_planilha():
         CHAT_ID,
         "Registrado com sucesso",
     )
+
+
+class DataRegistroFixa:
+    @staticmethod
+    def now(_timezone):
+        return DateTime(2026, 10, 2)
+
+
+class DataRegistroViradaMes:
+    @staticmethod
+    def now(_timezone):
+        return DateTime(2026, 10, 1)
+
+
+class DataRegistroViradaAno:
+    @staticmethod
+    def now(_timezone):
+        return DateTime(2027, 1, 1)
+
+
+@pytest.mark.parametrize(
+    ("texto", "data_esperada"),
+    [
+        ("Comprei um açaí de 15 reais", "02/10/2026"),
+        ("Comprei um café hoje por 8 reais", "02/10/2026"),
+        ("Gastei 30 reais ontem no mercado", "01/10/2026"),
+        ("Comprei um lanche anteontem por 20 reais", "30/09/2026"),
+    ],
+)
+def test_registro_resolve_datas_relativas_e_ausentes(monkeypatch, texto, data_esperada):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake(
+        data="01/01/1999"
+    )
+    dependencias["registrar_movimentacao"].return_value = "Registrado"
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroFixa)
+
+    bot.handler(criar_mensagem(texto))
+
+    registro = dependencias["registrar_movimentacao"].call_args.args[1]
+    assert registro.data == data_esperada
+    assert registro.tipo == "gasto"
+    assert registro.valor_total == 20.0
+    assert registro.descricao == "Mercado"
+    assert registro.parcelas == 1
+    assert registro.categoria == "Outros"
+
+
+def test_registro_ontem_considera_virada_de_mes(monkeypatch):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake(
+        data="01/01/1999"
+    )
+    dependencias["registrar_movimentacao"].return_value = "Registrado"
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroViradaMes)
+
+    bot.handler(criar_mensagem("Gastei 30 reais ontem no mercado"))
+
+    registro = dependencias["registrar_movimentacao"].call_args.args[1]
+    assert registro.data == "30/09/2026"
+
+
+def test_registro_ontem_considera_virada_de_ano(monkeypatch):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake(
+        data="01/01/1999"
+    )
+    dependencias["registrar_movimentacao"].return_value = "Registrado"
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroViradaAno)
+
+    bot.handler(criar_mensagem("Gastei 30 reais ontem no mercado"))
+
+    registro = dependencias["registrar_movimentacao"].call_args.args[1]
+    assert registro.data == "31/12/2026"
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "Comprei um tênis em 15/09/2026 por 200 reais",
+        "Comprei um tênis dia 15 de setembro por 200 reais",
+        "Comprei um tênis 15 de setembro de 2026 por 200 reais",
+    ],
+)
+def test_registro_preserva_data_explicita_interpretada_pela_ia(monkeypatch, texto):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake(
+        data="15/09/2026"
+    )
+    dependencias["registrar_movimentacao"].return_value = "Registrado"
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroFixa)
+
+    bot.handler(criar_mensagem(texto))
+
+    registro = dependencias["registrar_movimentacao"].call_args.args[1]
+    assert registro.data == "15/09/2026"
 
 
 def test_usuario_autorizado_com_consulta_chama_consultar_gastos_mes():
@@ -200,16 +306,69 @@ def test_usuario_autorizado_com_consulta_chama_consultar_gastos_mes():
     }
     dependencias["consultar_gastos_mes"].return_value = "Resumo do mês"
 
-    bot.handler(criar_mensagem("quanto gastei este mes?"))
+    bot.handler(criar_mensagem("quanto gastei em setembro de 2026?"))
 
     dependencias["interpretar_mensagem"].assert_called_once_with(
-        "quanto gastei este mes?"
+        "quanto gastei em setembro de 2026?"
     )
     dependencias["consultar_gastos_mes"].assert_called_once_with(
         dependencias["planilha"], "09", "2026"
     )
     dependencias["registrar_movimentacao"].assert_not_called()
     bot.send_message.assert_any_call(CHAT_ID, "Resumo do mês", parse_mode="Markdown")
+
+
+class DataFixa:
+    @staticmethod
+    def now(_timezone):
+        return SimpleNamespace(month=9, year=2026)
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "quanto gastei esse mês?",
+        "quanto gastei este mês?",
+        "meus gastos desse mês",
+        "quanto gastei neste mês?",
+        "meus gastos deste mês",
+    ],
+)
+def test_consulta_relativa_mes_atual_usa_periodo_da_aplicacao(monkeypatch, texto):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = {
+        "intencao": "consultar",
+        "mes": "01",
+        "ano": "1999",
+    }
+    dependencias["consultar_gastos_mes"].return_value = "Resumo do mês"
+    monkeypatch.setattr(telegram_bot, "datetime", DataFixa)
+
+    bot.handler(criar_mensagem(texto))
+
+    dependencias["interpretar_mensagem"].assert_called_once_with(texto)
+    dependencias["consultar_gastos_mes"].assert_called_once_with(
+        dependencias["planilha"], "09", "2026"
+    )
+    dependencias["registrar_movimentacao"].assert_not_called()
+
+
+def test_consulta_explicita_preserva_periodo_inferido_pela_ia(monkeypatch):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = {
+        "intencao": "consultar",
+        "mes": "06",
+        "ano": "2026",
+    }
+    dependencias["consultar_gastos_mes"].return_value = "Resumo de junho"
+    monkeypatch.setattr(telegram_bot, "datetime", DataFixa)
+
+    bot.handler(criar_mensagem("quanto gastei em junho de 2026?"))
+
+    dependencias["consultar_gastos_mes"].assert_called_once_with(
+        dependencias["planilha"], "06", "2026"
+    )
+    dependencias["registrar_movimentacao"].assert_not_called()
 
 
 def test_intencao_inesperada_envia_mensagem_segura():
@@ -253,7 +412,7 @@ def test_falha_ao_registrar_movimentacao_envia_fallback_seguro(caplog):
     dependencias["registrar_movimentacao"].side_effect = RuntimeError("falha planilha")
 
     with caplog.at_level(logging.ERROR, logger="main"):
-        bot.handler(criar_mensagem("gastei 30 no mercado"))
+        bot.handler(criar_mensagem("gastei 30 no mercado em 15/09/2026"))
 
     dependencias["registrar_movimentacao"].assert_called_once_with(
         dependencias["planilha"], registro
@@ -263,7 +422,7 @@ def test_falha_ao_registrar_movimentacao_envia_fallback_seguro(caplog):
         CHAT_ID,
         "Ops, ocorreu um erro ao processar o seu pedido.",
     )
-    assert "gastei 30 no mercado" not in caplog.text
+    assert "gastei 30 no mercado em 15/09/2026" not in caplog.text
     assert "token-ficticio" not in caplog.text
 
 

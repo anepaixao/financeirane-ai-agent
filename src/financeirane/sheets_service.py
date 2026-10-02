@@ -94,13 +94,13 @@ def erro_transiente_google(erro):
     return "timeout" in nome_erro or "connection" in nome_erro
 
 
-def inserir_linhas_com_retry(planilha, linhas, index):
+def inserir_linhas_com_retry(planilha, linhas):
     ultima_excecao = None
     inicio = iniciar_medicao()
 
     for tentativa in range(1, MAX_TENTATIVAS_ESCRITA + 1):
         try:
-            planilha.insert_rows(linhas, row=index)
+            planilha.append_rows(linhas)
             logger.info(
                 "Lote escrito no Google Sheets. operacao=inserir_linhas tentativa=%s total_linhas=%s duracao_ms=%s",
                 tentativa,
@@ -169,7 +169,6 @@ def registrar_movimentacao(planilha, dados):
         total_parcelas,
         tipo,
     )
-    linha_insercao = 2
     novas_linhas = []
 
     for i in range(total_parcelas):
@@ -194,7 +193,7 @@ def registrar_movimentacao(planilha, dados):
             ]
         )
 
-    inserir_linhas_com_retry(planilha, novas_linhas, linha_insercao)
+    inserir_linhas_com_retry(planilha, novas_linhas)
     logger.info(
         "Movimentação salva na planilha. operacao=registrar_movimentacao total_linhas=%s",
         len(novas_linhas),

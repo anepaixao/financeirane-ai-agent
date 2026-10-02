@@ -1,8 +1,103 @@
 import logging
+import re
+import unicodedata
+from dataclasses import replace
+from datetime import datetime, timedelta
+from zoneinfo import ZoneInfo
 
 from financeirane.logging_config import duracao_ms, iniciar_medicao, mascarar_id
 
 logger = logging.getLogger("main")
+
+
+def normalizar_texto_consulta(texto):
+    texto_normalizado = unicodedata.normalize("NFKD", texto or "")
+    texto_sem_acentos = "".join(
+        caractere
+        for caractere in texto_normalizado
+        if not unicodedata.combining(caractere)
+    )
+    return texto_sem_acentos.lower()
+
+
+def consulta_mes_atual(texto):
+    texto_normalizado = normalizar_texto_consulta(texto)
+    expressoes_relativas = (
+        "esse mes",
+        "este mes",
+        "desse mes",
+        "neste mes",
+        "deste mes",
+    )
+    return any(expressao in texto_normalizado for expressao in expressoes_relativas)
+
+
+def resolver_periodo_consulta(texto, dados):
+    if consulta_mes_atual(texto):
+        hoje = datetime.now(ZoneInfo("America/Bahia"))
+        return f"{hoje.month:02d}", str(hoje.year)
+
+    return dados.get("mes"), dados.get("ano")
+
+
+MESES_NOMEADOS = (
+    "janeiro",
+    "fevereiro",
+    "marco",
+    "abril",
+    "maio",
+    "junho",
+    "julho",
+    "agosto",
+    "setembro",
+    "outubro",
+    "novembro",
+    "dezembro",
+)
+
+
+def data_atual_bahia():
+    return datetime.now(ZoneInfo("America/Bahia")).date()
+
+
+def formatar_data(data):
+    return data.strftime("%d/%m/%Y")
+
+
+def contem_data_explicita(texto):
+    texto_normalizado = normalizar_texto_consulta(texto)
+    if re.search(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b", texto_normalizado):
+        return True
+
+    meses = "|".join(MESES_NOMEADOS)
+    padrao_data_textual = (
+        rf"\b(?:dia\s+)?\d{{1,2}}\s+de\s+(?:{meses})(?:\s+de\s+\d{{4}})?\b"
+    )
+    return re.search(padrao_data_textual, texto_normalizado) is not None
+
+
+def resolver_data_registro(texto):
+    if contem_data_explicita(texto):
+        return None
+
+    texto_normalizado = normalizar_texto_consulta(texto)
+    hoje = data_atual_bahia()
+
+    if re.search(r"\banteontem\b", texto_normalizado):
+        return formatar_data(hoje - timedelta(days=2))
+
+    if re.search(r"\bontem\b", texto_normalizado):
+        return formatar_data(hoje - timedelta(days=1))
+
+    return formatar_data(hoje)
+
+
+def aplicar_data_deterministica_registro(texto, registro):
+    data_resolvida = resolver_data_registro(texto)
+    if data_resolvida is None:
+        return registro
+
+    return replace(registro, data=data_resolvida)
 
 
 def registrar_handlers(bot, planilha):
@@ -66,6 +161,7 @@ def registrar_handlers(bot, planilha):
             )
 
             if intencao == "registrar":
+                dados = aplicar_data_deterministica_registro(texto, dados)
                 resposta = registrar_movimentacao(planilha, dados)
                 bot.send_message(chat_id, resposta)
                 logger.info(
@@ -75,9 +171,8 @@ def registrar_handlers(bot, planilha):
                 return
 
             if intencao == "consultar":
-                resposta = consultar_gastos_mes(
-                    planilha, dados.get("mes"), dados.get("ano")
-                )
+                mes_consulta, ano_consulta = resolver_periodo_consulta(texto, dados)
+                resposta = consultar_gastos_mes(planilha, mes_consulta, ano_consulta)
                 bot.send_message(chat_id, resposta, parse_mode="Markdown")
                 logger.info(
                     "Fluxo de consulta concluído com sucesso. operacao=consultar_movimentacoes duracao_ms=%s",
