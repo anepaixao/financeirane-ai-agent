@@ -104,26 +104,26 @@ def test_erro_transiente_google_rejeita_erro_comum():
 
 def test_inserir_linhas_com_retry_sucesso_na_primeira_tentativa(monkeypatch):
     sleep = Mock()
-    planilha = SimpleNamespace(insert_rows=Mock())
+    planilha = SimpleNamespace(append_rows=Mock())
     linhas = [["01/08/2026", "gasto"]]
     monkeypatch.setattr(sheets_service.time, "sleep", sleep)
 
-    inserir_linhas_com_retry(planilha, linhas, index=2)
+    inserir_linhas_com_retry(planilha, linhas)
 
-    planilha.insert_rows.assert_called_once_with(linhas, row=2)
+    planilha.append_rows.assert_called_once_with(linhas)
     sleep.assert_not_called()
 
 
 def test_inserir_linhas_com_retry_erro_transitorio_seguido_de_sucesso(monkeypatch):
     sleep = Mock()
     erro = TimeoutFakeError("timeout")
-    planilha = SimpleNamespace(insert_rows=Mock(side_effect=[erro, None]))
+    planilha = SimpleNamespace(append_rows=Mock(side_effect=[erro, None]))
     linhas = [["01/08/2026", "gasto"]]
     monkeypatch.setattr(sheets_service.time, "sleep", sleep)
 
-    inserir_linhas_com_retry(planilha, linhas, index=2)
+    inserir_linhas_com_retry(planilha, linhas)
 
-    assert planilha.insert_rows.call_count == 2
+    assert planilha.append_rows.call_count == 2
     sleep.assert_called_once_with(sheets_service.TEMPO_ESPERA_INICIAL)
 
 
@@ -132,30 +132,30 @@ def test_inserir_linhas_com_retry_erro_nao_transitorio_gera_erro_customizado(
 ):
     sleep = Mock()
     erro = ValueError("erro permanente")
-    planilha = SimpleNamespace(insert_rows=Mock(side_effect=erro))
+    planilha = SimpleNamespace(append_rows=Mock(side_effect=erro))
     linhas = [["01/08/2026", "gasto"]]
     monkeypatch.setattr(sheets_service.time, "sleep", sleep)
 
     with pytest.raises(PlanilhaEscritaError) as capturado:
-        inserir_linhas_com_retry(planilha, linhas, index=2)
+        inserir_linhas_com_retry(planilha, linhas)
 
     assert capturado.value.__cause__ is erro
-    planilha.insert_rows.assert_called_once_with(linhas, row=2)
+    planilha.append_rows.assert_called_once_with(linhas)
     sleep.assert_not_called()
 
 
 def test_inserir_linhas_com_retry_esgota_tentativas_com_backoff(monkeypatch):
     sleep = Mock()
     erro = criar_api_error(503)
-    planilha = SimpleNamespace(insert_rows=Mock(side_effect=erro))
+    planilha = SimpleNamespace(append_rows=Mock(side_effect=erro))
     linhas = [["01/08/2026", "gasto"], ["01/09/2026", "gasto"]]
     monkeypatch.setattr(sheets_service.time, "sleep", sleep)
 
     with pytest.raises(PlanilhaEscritaError) as capturado:
-        inserir_linhas_com_retry(planilha, linhas, index=2)
+        inserir_linhas_com_retry(planilha, linhas)
 
     assert capturado.value.__cause__ is erro
-    assert planilha.insert_rows.call_count == sheets_service.MAX_TENTATIVAS_ESCRITA
+    assert planilha.append_rows.call_count == sheets_service.MAX_TENTATIVAS_ESCRITA
     assert sleep.call_args_list == [
         call(sheets_service.TEMPO_ESPERA_INICIAL),
         call(sheets_service.TEMPO_ESPERA_INICIAL * 2),
@@ -163,11 +163,11 @@ def test_inserir_linhas_com_retry_esgota_tentativas_com_backoff(monkeypatch):
 
 
 def test_inserir_linhas_com_retry_loga_quantidade_de_linhas_sem_conteudo(caplog):
-    planilha = SimpleNamespace(insert_rows=Mock())
+    planilha = SimpleNamespace(append_rows=Mock())
     linhas = [["01/08/2026", "gasto", "987654321", "mercado secreto"]]
 
     with caplog.at_level("INFO", logger="sheets_service"):
-        inserir_linhas_com_retry(planilha, linhas, index=2)
+        inserir_linhas_com_retry(planilha, linhas)
 
     assert "total_linhas=1" in caplog.text
     assert "987654321" not in caplog.text
@@ -175,7 +175,7 @@ def test_inserir_linhas_com_retry_loga_quantidade_de_linhas_sem_conteudo(caplog)
     assert str(linhas) not in caplog.text
 
 
-def test_registrar_movimentacao_gasto_simples_chama_retry_com_lote(monkeypatch):
+def test_registrar_movimentacao_gasto_simples_adiciona_lote_no_final(monkeypatch):
     inserir = Mock()
     monkeypatch.setattr(sheets_service, "inserir_linhas_com_retry", inserir)
     planilha = object()
@@ -185,7 +185,6 @@ def test_registrar_movimentacao_gasto_simples_chama_retry_com_lote(monkeypatch):
     inserir.assert_called_once_with(
         planilha,
         [["31/01/2026", "gasto", "100,00", "Mercado", 1, "Outros"]],
-        2,
     )
     assert resposta == "✅ Registado!\nAdicionado: Mercado (Outros) - R$ 100.00."
 
@@ -207,7 +206,7 @@ def test_registrar_movimentacao_receita_simples_preserva_tipo_categoria(monkeypa
     assert resposta == "✅ Registado!\nAdicionado: Freela (Outros) - R$ 2500.50."
 
 
-def test_registrar_movimentacao_compra_parcelada_distribui_centavos_e_datas(
+def test_registrar_movimentacao_compra_parcelada_adiciona_linhas_no_final(
     monkeypatch,
 ):
     inserir = Mock()
