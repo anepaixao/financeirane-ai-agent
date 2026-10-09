@@ -197,11 +197,14 @@ def registrar_handlers(bot, planilha):
 def criar_bot():
     import telebot
 
-    from financeirane.config import TELEGRAM_TOKEN
+    from financeirane.config import APP_ENV, TELEGRAM_TOKEN
     from financeirane.sheets_service import conectar_planilha
 
     planilha = conectar_planilha()
     bot = telebot.TeleBot(TELEGRAM_TOKEN)
     registrar_handlers(bot, planilha)
-    logger.info("A FinanceirAne está online. operacao=inicializar_bot")
+    logger.info(
+        "A FinanceirAne está online. operacao=inicializar_bot ambiente=%s",
+        APP_ENV,
+    )
     return bot

@@ -10,7 +10,11 @@ os.environ.setdefault("GEMINI_API_KEY", "gemini-api-key-ficticia")
 os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
 import financeirane.sheets_service as sheets_service
-from config import GOOGLE_CREDENTIALS_FILE, MAX_PARCELAS, SPREADSHEET_NAME
+from config import (
+    GOOGLE_CREDENTIALS_FILE,
+    MAX_PARCELAS,
+    SPREADSHEET_NAME,
+)
 from financeirane.domain.models import RegistroFinanceiro
 from financeirane.sheets_service import (
     PlanilhaEscritaError,
@@ -53,15 +57,16 @@ def criar_registro(**overrides):
         "descricao": "Mercado",
         "parcelas": 1,
         "categoria": "Outros",
+        "forma_pagamento": "Pix",
     }
     dados.update(overrides)
     return RegistroFinanceiro(**dados)
 
 
-def test_conectar_planilha_usa_credenciais_e_nome_configurados(monkeypatch):
+def test_conectar_planilha_usa_nome_configurado_quando_id_nao_existe(monkeypatch):
     planilha = object()
     arquivo = SimpleNamespace(sheet1=planilha)
-    cliente = SimpleNamespace(open=Mock(return_value=arquivo))
+    cliente = SimpleNamespace(open=Mock(return_value=arquivo), open_by_key=Mock())
     service_account = Mock(return_value=cliente)
     monkeypatch.setattr(sheets_service.gspread, "service_account", service_account)
 
@@ -70,6 +75,23 @@ def test_conectar_planilha_usa_credenciais_e_nome_configurados(monkeypatch):
     assert resultado is planilha
     service_account.assert_called_once_with(filename=GOOGLE_CREDENTIALS_FILE)
     cliente.open.assert_called_once_with(SPREADSHEET_NAME)
+    cliente.open_by_key.assert_not_called()
+
+
+def test_conectar_planilha_prefere_id_configurado(monkeypatch):
+    planilha = object()
+    arquivo = SimpleNamespace(sheet1=planilha)
+    cliente = SimpleNamespace(open=Mock(), open_by_key=Mock(return_value=arquivo))
+    service_account = Mock(return_value=cliente)
+    monkeypatch.setattr(sheets_service.gspread, "service_account", service_account)
+    monkeypatch.setattr(sheets_service, "SPREADSHEET_ID", "spreadsheet-id-ficticio")
+
+    resultado = conectar_planilha()
+
+    assert resultado is planilha
+    service_account.assert_called_once_with(filename=GOOGLE_CREDENTIALS_FILE)
+    cliente.open_by_key.assert_called_once_with("spreadsheet-id-ficticio")
+    cliente.open.assert_not_called()
 
 
 def test_obter_status_code_google_retorna_status_quando_existe():
@@ -184,7 +206,7 @@ def test_registrar_movimentacao_gasto_simples_adiciona_lote_no_final(monkeypatch
 
     inserir.assert_called_once_with(
         planilha,
-        [["31/01/2026", "gasto", "100,00", "Mercado", 1, "Outros"]],
+        [["31/01/2026", "gasto", "100,00", "Mercado", 1, "Outros", "Pix"]],
     )
     assert resposta == "✅ Registado!\nAdicionado: Mercado (Outros) - R$ 100.00."
 
@@ -202,7 +224,7 @@ def test_registrar_movimentacao_receita_simples_preserva_tipo_categoria(monkeypa
     resposta = registrar_movimentacao(object(), registro)
 
     linha = inserir.call_args.args[1][0]
-    assert linha == ["31/01/2026", "receita", "2500,50", "Freela", 1, "Outros"]
+    assert linha == ["31/01/2026", "receita", "2500,50", "Freela", 1, "Outros", "Pix"]
     assert resposta == "✅ Registado!\nAdicionado: Freela (Outros) - R$ 2500.50."
 
 
@@ -217,9 +239,9 @@ def test_registrar_movimentacao_compra_parcelada_adiciona_linhas_no_final(
 
     linhas = inserir.call_args.args[1]
     assert linhas == [
-        ["31/01/2026", "gasto", "33,34", "Mercado (Parcela 1/3)", 3, "Feira"],
-        ["28/02/2026", "gasto", "33,33", "Mercado (Parcela 2/3)", 3, "Feira"],
-        ["31/03/2026", "gasto", "33,33", "Mercado (Parcela 3/3)", 3, "Feira"],
+        ["31/01/2026", "gasto", "33,34", "Mercado (Parcela 1/3)", 3, "Feira", "Pix"],
+        ["28/02/2026", "gasto", "33,33", "Mercado (Parcela 2/3)", 3, "Feira", "Pix"],
+        ["31/03/2026", "gasto", "33,33", "Mercado (Parcela 3/3)", 3, "Feira", "Pix"],
     ]
     assert sum(int(linha[2].replace(",", "")) for linha in linhas) == 10000
     inserir.assert_called_once()
@@ -236,7 +258,9 @@ def test_registrar_movimentacao_aplica_texto_seguro_na_descricao(monkeypatch):
 
     registrar_movimentacao(object(), registro)
 
-    assert inserir.call_args.args[1][0][3] == "'=SOMA(A1:A2)"
+    linha = inserir.call_args.args[1][0]
+    assert linha[3] == "'=SOMA(A1:A2)"
+    assert len(linha) == 7
 
 
 @pytest.mark.parametrize(

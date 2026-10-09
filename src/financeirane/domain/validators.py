@@ -1,6 +1,11 @@
 from datetime import datetime
 
-from financeirane.config import CATEGORIAS_PERMITIDAS, MAX_PARCELAS, TIPOS_PERMITIDOS
+from financeirane.config import (
+    CATEGORIAS_PERMITIDAS,
+    FORMAS_PAGAMENTO_PERMITIDAS,
+    MAX_PARCELAS,
+    TIPOS_PERMITIDOS,
+)
 from financeirane.domain.exceptions import EntradaInvalidaError
 from financeirane.domain.models import RegistroFinanceiro
 
@@ -34,6 +39,14 @@ def validar_tipo(tipo):
 def validar_categoria(categoria):
     if categoria not in CATEGORIAS_PERMITIDAS:
         raise EntradaInvalidaError("Categoria inválida. Use uma categoria permitida.")
+
+
+def validar_forma_pagamento(forma_pagamento):
+    if forma_pagamento not in FORMAS_PAGAMENTO_PERMITIDAS:
+        formas = ", ".join(FORMAS_PAGAMENTO_PERMITIDAS)
+        raise EntradaInvalidaError(
+            f"Forma de pagamento inválida. Use um destes valores: {formas}."
+        )
 
 
 def validar_parcelas(parcelas):
@@ -71,6 +84,7 @@ def validar_registro(registro: RegistroFinanceiro):
     validar_valor(registro.valor_total)
     validar_tipo(registro.tipo)
     validar_categoria(registro.categoria)
+    validar_forma_pagamento(registro.forma_pagamento)
     validar_parcelas(registro.parcelas)
     validar_descricao(registro.descricao)
 

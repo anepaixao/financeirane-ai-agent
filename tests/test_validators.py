@@ -6,7 +6,12 @@ os.environ.setdefault("TELEGRAM_TOKEN", "telegram-token-ficticio")
 os.environ.setdefault("GEMINI_API_KEY", "gemini-api-key-ficticia")
 os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
-from config import CATEGORIAS_PERMITIDAS, MAX_PARCELAS, TIPOS_PERMITIDOS
+from config import (
+    CATEGORIAS_PERMITIDAS,
+    FORMAS_PAGAMENTO_PERMITIDAS,
+    MAX_PARCELAS,
+    TIPOS_PERMITIDOS,
+)
 from financeirane.domain.exceptions import EntradaInvalidaError
 from financeirane.domain.models import RegistroFinanceiro
 from financeirane.domain.validators import (
@@ -14,6 +19,7 @@ from financeirane.domain.validators import (
     validar_categoria,
     validar_data,
     validar_descricao,
+    validar_forma_pagamento,
     validar_parcelas,
     validar_registro,
     validar_tipo,
@@ -29,6 +35,7 @@ def criar_registro_valido(**overrides):
         "descricao": "Mercado",
         "parcelas": 1,
         "categoria": "Outros",
+        "forma_pagamento": "Pix",
     }
     dados.update(overrides)
     return RegistroFinanceiro(**dados)
@@ -73,6 +80,21 @@ def test_validar_categoria_aceita_categorias_permitidas(categoria):
 def test_validar_categoria_rejeita_categoria_desconhecida():
     with pytest.raises(EntradaInvalidaError):
         validar_categoria("Categoria Inexistente")
+
+
+def test_validar_categoria_rejeita_categoria_antiga_cartao_de_credito():
+    with pytest.raises(EntradaInvalidaError):
+        validar_categoria("Cartão de Crédito")
+
+
+@pytest.mark.parametrize("forma_pagamento", FORMAS_PAGAMENTO_PERMITIDAS)
+def test_validar_forma_pagamento_aceita_formas_permitidas(forma_pagamento):
+    assert validar_forma_pagamento(forma_pagamento) is None
+
+
+def test_validar_forma_pagamento_rejeita_forma_desconhecida():
+    with pytest.raises(EntradaInvalidaError):
+        validar_forma_pagamento("Boleto")
 
 
 @pytest.mark.parametrize("parcelas", [1, MAX_PARCELAS])
