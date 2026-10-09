@@ -47,6 +47,7 @@ def json_registro_valido(**overrides):
         "descricao": "Mercado",
         "parcelas": 1,
         "categoria": "Outros",
+        "forma_pagamento": "Pix",
     }
     dados.update(overrides)
     return json.dumps(dados)
@@ -69,6 +70,9 @@ def test_montar_system_prompt_inclui_data_categorias_e_estruturas(monkeypatch):
     assert '"intencao": "registrar"' in prompt
     assert '"intencao": "consultar"' in prompt
     assert "Não retorne Markdown" in prompt
+    assert "forma_pagamento" in prompt
+    assert "Crédito" in prompt
+    assert "Alimentação" in prompt
 
 
 def test_validar_resposta_gemini_retorna_registro_financeiro_valido():
@@ -81,6 +85,7 @@ def test_validar_resposta_gemini_retorna_registro_financeiro_valido():
         descricao="Mercado",
         parcelas=1,
         categoria="Outros",
+        forma_pagamento="Pix",
     )
 
 
@@ -109,6 +114,14 @@ def test_validar_resposta_gemini_rejeita_intencao_desconhecida():
 def test_validar_resposta_gemini_rejeita_chaves_ausentes_em_registro():
     dados = json.loads(json_registro_valido())
     dados.pop("categoria")
+
+    with pytest.raises(InterpretacaoIAError, match="registro fora do padrão"):
+        ai_service.validar_resposta_gemini(json.dumps(dados))
+
+
+def test_validar_resposta_gemini_rejeita_registro_sem_forma_pagamento():
+    dados = json.loads(json_registro_valido())
+    dados.pop("forma_pagamento")
 
     with pytest.raises(InterpretacaoIAError, match="registro fora do padrão"):
         ai_service.validar_resposta_gemini(json.dumps(dados))
@@ -155,6 +168,7 @@ def test_validar_resposta_gemini_aceita_chaves_exatas_sem_campos_extras():
 
     assert isinstance(resultado, RegistroFinanceiro)
     assert resultado.parcelas == 2
+    assert resultado.forma_pagamento == "Pix"
 
 
 def test_interpretar_mensagem_chama_gemini_e_retorna_registro(monkeypatch):

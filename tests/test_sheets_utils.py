@@ -97,6 +97,10 @@ def test_normalizar_categoria_retorna_outros_para_categoria_invalida():
     assert normalizar_categoria("Categoria Inexistente") == "Outros"
 
 
+def test_normalizar_categoria_retorna_outros_para_categoria_antiga():
+    assert normalizar_categoria("Cartão de Crédito") == "Outros"
+
+
 @pytest.mark.parametrize("tipo", sorted(TIPOS_PERMITIDOS))
 def test_normalizar_tipo_preserva_tipos_permitidos(tipo):
     assert normalizar_tipo(tipo) == tipo

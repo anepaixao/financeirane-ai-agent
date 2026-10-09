@@ -8,9 +8,11 @@ import gspread
 from gspread.exceptions import APIError
 
 from financeirane.config import (
+    APP_ENV,
     CATEGORIAS_PERMITIDAS,
     GOOGLE_CREDENTIALS_FILE,
     MAX_PARCELAS,
+    SPREADSHEET_ID,
     SPREADSHEET_NAME,
     TIPOS_PERMITIDOS,
 )
@@ -31,9 +33,13 @@ def conectar_planilha():
     inicio = iniciar_medicao()
     logger.info("Conectando ao Google Planilhas. operacao=conectar_planilha")
     gc = gspread.service_account(filename=GOOGLE_CREDENTIALS_FILE)
-    planilha = gc.open(SPREADSHEET_NAME).sheet1
+    if SPREADSHEET_ID:
+        planilha = gc.open_by_key(SPREADSHEET_ID).sheet1
+    else:
+        planilha = gc.open(SPREADSHEET_NAME).sheet1
     logger.info(
-        "Conectado à planilha configurada. operacao=conectar_planilha duracao_ms=%s",
+        "Conectado à planilha configurada. operacao=conectar_planilha ambiente=%s duracao_ms=%s",
+        APP_ENV,
         duracao_ms(inicio),
     )
     return planilha
@@ -158,6 +164,7 @@ def registrar_movimentacao(planilha, dados):
     if total_parcelas < 1 or total_parcelas > MAX_PARCELAS:
         raise ValueError(f"parcelas deve estar entre 1 e {MAX_PARCELAS}")
     categoria = dados.categoria
+    forma_pagamento = texto_seguro_planilha(dados.forma_pagamento)
 
     valor_total_centavos = valor_em_centavos(raw_valor)
     valor_base_centavos, centavos_restantes = divmod(
@@ -190,6 +197,7 @@ def registrar_movimentacao(planilha, dados):
                 descricao_final,
                 total_parcelas,
                 categoria,
+                forma_pagamento,
             ]
         )
 

@@ -39,6 +39,7 @@ class RegistroFinanceiroFake:
     descricao: str = "Mercado"
     parcelas: int = 1
     categoria: str = "Outros"
+    forma_pagamento: str = "Pix"
 
 
 def criar_modulo(nome, **atributos):
@@ -71,6 +72,7 @@ def preparar_handler():
         ),
         "financeirane.config": criar_modulo(
             "financeirane.config",
+            APP_ENV="development",
             AUTHORIZED_CHAT_IDS={AUTHORIZED_USER_ID},
             MAX_MESSAGE_LENGTH=MAX_MESSAGE_LENGTH,
         ),
@@ -453,7 +455,9 @@ def test_criar_bot_conecta_planilha_registra_handlers_e_nao_inicia_polling():
     bot = FakeBot()
     telebot_modulo = criar_modulo("telebot", TeleBot=Mock(return_value=bot))
     planilha = object()
-    config_modulo = criar_modulo("financeirane.config", TELEGRAM_TOKEN="token-ficticio")
+    config_modulo = criar_modulo(
+        "financeirane.config", APP_ENV="production", TELEGRAM_TOKEN="token-ficticio"
+    )
     sheets_modulo = criar_modulo(
         "financeirane.sheets_service", conectar_planilha=Mock(return_value=planilha)
     )
@@ -476,6 +480,35 @@ def test_criar_bot_conecta_planilha_registra_handlers_e_nao_inicia_polling():
     telebot_modulo.TeleBot.assert_called_once_with("token-ficticio")
     registrar_handlers.assert_called_once_with(bot, planilha)
     assert not hasattr(bot, "infinity_polling") or not bot.infinity_polling.called
+
+
+def test_criar_bot_loga_ambiente_ativo(caplog):
+    bot = FakeBot()
+    telebot_modulo = criar_modulo("telebot", TeleBot=Mock(return_value=bot))
+    planilha = object()
+    config_modulo = criar_modulo(
+        "financeirane.config", APP_ENV="production", TELEGRAM_TOKEN="token-ficticio"
+    )
+    sheets_modulo = criar_modulo(
+        "financeirane.sheets_service", conectar_planilha=Mock(return_value=planilha)
+    )
+
+    with (
+        patch.dict(
+            sys.modules,
+            {
+                "telebot": telebot_modulo,
+                "financeirane.config": config_modulo,
+                "financeirane.sheets_service": sheets_modulo,
+            },
+        ),
+        patch.object(telegram_bot, "registrar_handlers"),
+        caplog.at_level(logging.INFO, logger="main"),
+    ):
+        telegram_bot.criar_bot()
+
+    assert "operacao=inicializar_bot ambiente=production" in caplog.text
+    assert "token-ficticio" not in caplog.text
 
 
 def test_importar_main_nao_inicia_polling(monkeypatch):
