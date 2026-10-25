@@ -10,3 +10,4 @@ class RegistroFinanceiro:
     parcelas: int
     categoria: str
     forma_pagamento: str
+    conta_cartao: str

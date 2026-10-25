@@ -1,5 +1,8 @@
 import json
 import logging
+import re
+import unicodedata
+from dataclasses import replace
 from datetime import datetime
 
 from google import genai
@@ -7,6 +10,7 @@ from google.genai import types
 
 from financeirane.config import (
     CATEGORIAS_PERMITIDAS,
+    CONTAS_CARTOES_PERMITIDOS,
     FORMAS_PAGAMENTO_PERMITIDAS,
     GEMINI_API_KEY,
 )
@@ -27,11 +31,30 @@ CHAVES_REGISTRO = {
     "parcelas",
     "categoria",
     "forma_pagamento",
+    "conta_cartao",
 }
 CHAVES_CONSULTA = {"intencao", "mes", "ano"}
+PARCELA_EXISTENTE = re.compile(
+    r"\b(?:\d+\s*[ao]?|segunda)\s+(?:e\s+ultima\s+)?parcela\b"
+    r"|\bultima\s+parcela\b"
+    r"|\bparcela\s+atual\b"
+)
 
 
-def montar_system_prompt(categorias, formas_pagamento=FORMAS_PAGAMENTO_PERMITIDAS):
+def informa_parcela_existente(texto):
+    texto_normalizado = "".join(
+        caractere
+        for caractere in unicodedata.normalize("NFKD", texto.casefold())
+        if not unicodedata.combining(caractere)
+    )
+    return PARCELA_EXISTENTE.search(texto_normalizado) is not None
+
+
+def montar_system_prompt(
+    categorias,
+    formas_pagamento=FORMAS_PAGAMENTO_PERMITIDAS,
+    contas_cartoes=CONTAS_CARTOES_PERMITIDOS,
+):
     hoje = datetime.today()
 
     return f"""
@@ -40,6 +63,9 @@ A data de hoje é {hoje.strftime("%d/%m/%Y")}. O ano é {hoje.year}.
 
 As categorias permitidas para os gastos são estritamente estas: {categorias}. Use a sua inteligência para classificar o gasto na categoria mais adequada da vida pessoal dela. Se não se encaixar em nenhuma, use "Outros". Se for uma receita/ganho, use "Outros".
 As formas de pagamento permitidas são estritamente estas: {formas_pagamento}. Para registros, escolha exatamente uma delas. Exemplos: "comprei um açaí de 15 reais no crédito" usa categoria "Alimentação" e forma_pagamento "Crédito"; "paguei 32 reais de Uber no pix" usa categoria "Transporte" e forma_pagamento "Pix"; "comprei uma camisa no débito" usa categoria "Vestuário" e forma_pagamento "Débito"; "paguei em dinheiro" usa forma_pagamento "Dinheiro".
+forma_pagamento representa apenas o meio de pagamento: Crédito, Débito, Pix ou Dinheiro. conta_cartao representa a instituição, conta ou cartão utilizado e deve ser um destes valores: {contas_cartoes}. Não guarde o nome da conta/cartão apenas na descrição.
+Exemplos: "gastei 20 reais no almoço no crédito do cartão Nubank" usa forma_pagamento "Crédito" e conta_cartao "Nubank"; "paguei 30 reais via Pix pelo Banco do Brasil" usa "Pix" e "Banco do Brasil"; "comprei um lanche no débito do Banco do Brasil" usa "Débito" e "Banco do Brasil"; "paguei 10 reais em dinheiro" usa "Dinheiro" nos dois campos.
+Se o usuário disser que o valor informado é UMA parcela de compra já existente (por exemplo, "valor referente à 4ª parcela de 4", "2ª parcela de 5" ou "parcela atual"), use parcelas=1: o valor_total corresponde só à parcela corrente. Use parcelas > 1 somente para uma NOVA COMPRA cujo valor total será dividido. Exemplo: "Comprei um tênis de R$ 300 em 3x no Nubank" usa valor_total=300 e parcelas=3; "Estou pagando R$ 100 referente à 2ª parcela de 3 do tênis no Nubank" usa valor_total=100 e parcelas=1.
 
 Analise a mensagem e retorne ESTRITAMENTE um único objeto JSON válido.
 Não retorne Markdown, comentários, texto explicativo, aspas externas, blocos de código ou campos extras.
@@ -54,7 +80,8 @@ Se for para REGISTRAR um gasto ou receita:
   "descricao": "resumo do gasto",
   "parcelas": número inteiro,
   "categoria": "uma das categorias da lista",
-  "forma_pagamento": "uma das formas de pagamento da lista"
+  "forma_pagamento": "uma das formas de pagamento da lista",
+  "conta_cartao": "uma das contas/cartões da lista"
 }}
 
 Se for para CONSULTAR ou perguntar quanto tem para pagar/gasto:
@@ -93,11 +120,12 @@ def validar_resposta_gemini(conteudo):
         if (
             not dados.get("categoria")
             or not dados.get("forma_pagamento")
+            or not dados.get("conta_cartao")
             or dados.get("valor_total") is None
             or not dados.get("descricao")
         ):
             raise InterpretacaoIAError(
-                "Resposta de registro incompleta. Campos obrigatórios: categoria, forma_pagamento, valor_total e descricao."
+                "Resposta de registro incompleta. Campos obrigatórios: categoria, forma_pagamento, conta_cartao, valor_total e descricao."
             )
 
         try:
@@ -109,6 +137,7 @@ def validar_resposta_gemini(conteudo):
                 parcelas=int(dados["parcelas"]),
                 categoria=dados["categoria"],
                 forma_pagamento=dados["forma_pagamento"],
+                conta_cartao=dados["conta_cartao"],
             )
         except (KeyError, TypeError, ValueError) as exc:
             raise InterpretacaoIAError(
@@ -148,6 +177,12 @@ def interpretar_mensagem(texto):
             ),
         )
         dados = validar_resposta_gemini(response.text)
+        if (
+            isinstance(dados, RegistroFinanceiro)
+            and dados.parcelas > 1
+            and informa_parcela_existente(texto)
+        ):
+            dados = replace(dados, parcelas=1)
     except Exception as exc:
         logger.exception(
             "Erro ao interpretar mensagem com Gemini. operacao=gemini_generate modelo=%s erro=%s duracao_ms=%s",

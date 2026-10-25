@@ -2,6 +2,7 @@ from datetime import datetime
 
 from financeirane.config import (
     CATEGORIAS_PERMITIDAS,
+    CONTAS_CARTOES_PERMITIDOS,
     FORMAS_PAGAMENTO_PERMITIDAS,
     MAX_PARCELAS,
     TIPOS_PERMITIDOS,
@@ -49,6 +50,14 @@ def validar_forma_pagamento(forma_pagamento):
         )
 
 
+def validar_conta_cartao(conta_cartao):
+    if conta_cartao not in CONTAS_CARTOES_PERMITIDOS:
+        contas = ", ".join(CONTAS_CARTOES_PERMITIDOS)
+        raise EntradaInvalidaError(
+            f"Conta/Cartão inválido. Use um destes valores: {contas}."
+        )
+
+
 def validar_parcelas(parcelas):
     if not isinstance(parcelas, int):
         raise EntradaInvalidaError("Parcelas deve ser um número inteiro.")
@@ -85,6 +94,7 @@ def validar_registro(registro: RegistroFinanceiro):
     validar_tipo(registro.tipo)
     validar_categoria(registro.categoria)
     validar_forma_pagamento(registro.forma_pagamento)
+    validar_conta_cartao(registro.conta_cartao)
     validar_parcelas(registro.parcelas)
     validar_descricao(registro.descricao)
 

@@ -40,6 +40,7 @@ class RegistroFinanceiroFake:
     parcelas: int = 1
     categoria: str = "Outros"
     forma_pagamento: str = "Pix"
+    conta_cartao: str = "Banco do Brasil"
 
 
 def criar_modulo(nome, **atributos):

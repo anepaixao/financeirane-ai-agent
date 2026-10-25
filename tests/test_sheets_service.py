@@ -58,6 +58,7 @@ def criar_registro(**overrides):
         "parcelas": 1,
         "categoria": "Outros",
         "forma_pagamento": "Pix",
+        "conta_cartao": "Banco do Brasil",
     }
     dados.update(overrides)
     return RegistroFinanceiro(**dados)
@@ -206,7 +207,18 @@ def test_registrar_movimentacao_gasto_simples_adiciona_lote_no_final(monkeypatch
 
     inserir.assert_called_once_with(
         planilha,
-        [["31/01/2026", "gasto", "100,00", "Mercado", 1, "Outros", "Pix"]],
+        [
+            [
+                "31/01/2026",
+                "gasto",
+                "100,00",
+                "Mercado",
+                1,
+                "Outros",
+                "Pix",
+                "Banco do Brasil",
+            ]
+        ],
     )
     assert resposta == "✅ Registado!\nAdicionado: Mercado (Outros) - R$ 100.00."
 
@@ -224,7 +236,16 @@ def test_registrar_movimentacao_receita_simples_preserva_tipo_categoria(monkeypa
     resposta = registrar_movimentacao(object(), registro)
 
     linha = inserir.call_args.args[1][0]
-    assert linha == ["31/01/2026", "receita", "2500,50", "Freela", 1, "Outros", "Pix"]
+    assert linha == [
+        "31/01/2026",
+        "receita",
+        "2500,50",
+        "Freela",
+        1,
+        "Outros",
+        "Pix",
+        "Banco do Brasil",
+    ]
     assert resposta == "✅ Registado!\nAdicionado: Freela (Outros) - R$ 2500.50."
 
 
@@ -239,9 +260,36 @@ def test_registrar_movimentacao_compra_parcelada_adiciona_linhas_no_final(
 
     linhas = inserir.call_args.args[1]
     assert linhas == [
-        ["31/01/2026", "gasto", "33,34", "Mercado (Parcela 1/3)", 3, "Feira", "Pix"],
-        ["28/02/2026", "gasto", "33,33", "Mercado (Parcela 2/3)", 3, "Feira", "Pix"],
-        ["31/03/2026", "gasto", "33,33", "Mercado (Parcela 3/3)", 3, "Feira", "Pix"],
+        [
+            "31/01/2026",
+            "gasto",
+            "33,34",
+            "Mercado (Parcela 1/3)",
+            3,
+            "Feira",
+            "Pix",
+            "Banco do Brasil",
+        ],
+        [
+            "28/02/2026",
+            "gasto",
+            "33,33",
+            "Mercado (Parcela 2/3)",
+            3,
+            "Feira",
+            "Pix",
+            "Banco do Brasil",
+        ],
+        [
+            "31/03/2026",
+            "gasto",
+            "33,33",
+            "Mercado (Parcela 3/3)",
+            3,
+            "Feira",
+            "Pix",
+            "Banco do Brasil",
+        ],
     ]
     assert sum(int(linha[2].replace(",", "")) for linha in linhas) == 10000
     inserir.assert_called_once()
@@ -260,7 +308,20 @@ def test_registrar_movimentacao_aplica_texto_seguro_na_descricao(monkeypatch):
 
     linha = inserir.call_args.args[1][0]
     assert linha[3] == "'=SOMA(A1:A2)"
-    assert len(linha) == 7
+    assert len(linha) == 8
+
+
+def test_registrar_movimentacao_preserva_conta_cartao_na_oitava_coluna(monkeypatch):
+    inserir = Mock()
+    monkeypatch.setattr(sheets_service, "inserir_linhas_com_retry", inserir)
+
+    registrar_movimentacao(
+        object(), criar_registro(forma_pagamento="Crédito", conta_cartao="Nubank")
+    )
+
+    linha = inserir.call_args.args[1][0]
+    assert len(linha) == 8
+    assert linha[6:] == ["Crédito", "Nubank"]
 
 
 @pytest.mark.parametrize(
