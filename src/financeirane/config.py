@@ -30,6 +30,14 @@ CATEGORIAS_PERMITIDAS = [
     "Outros",
 ]
 FORMAS_PAGAMENTO_PERMITIDAS = ["Crédito", "Débito", "Pix", "Dinheiro"]
+CONTAS_CARTOES_PERMITIDOS = [
+    "Banco do Brasil",
+    "Nubank",
+    "Mercado Pago",
+    "Infinity Pay",
+    "Karla",
+    "Dinheiro",
+]
 TIPOS_PERMITIDOS = {"gasto", "receita"}
 MAX_MESSAGE_LENGTH = 1000
 MAX_PARCELAS = 120

@@ -165,6 +165,7 @@ def registrar_movimentacao(planilha, dados):
         raise ValueError(f"parcelas deve estar entre 1 e {MAX_PARCELAS}")
     categoria = dados.categoria
     forma_pagamento = texto_seguro_planilha(dados.forma_pagamento)
+    conta_cartao = texto_seguro_planilha(dados.conta_cartao)
 
     valor_total_centavos = valor_em_centavos(raw_valor)
     valor_base_centavos, centavos_restantes = divmod(
@@ -198,6 +199,7 @@ def registrar_movimentacao(planilha, dados):
                 total_parcelas,
                 categoria,
                 forma_pagamento,
+                conta_cartao,
             ]
         )
 

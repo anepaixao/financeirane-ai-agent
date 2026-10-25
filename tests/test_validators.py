@@ -8,6 +8,7 @@ os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
 from config import (
     CATEGORIAS_PERMITIDAS,
+    CONTAS_CARTOES_PERMITIDOS,
     FORMAS_PAGAMENTO_PERMITIDAS,
     MAX_PARCELAS,
     TIPOS_PERMITIDOS,
@@ -17,6 +18,7 @@ from financeirane.domain.models import RegistroFinanceiro
 from financeirane.domain.validators import (
     MAX_DESCRICAO,
     validar_categoria,
+    validar_conta_cartao,
     validar_data,
     validar_descricao,
     validar_forma_pagamento,
@@ -36,6 +38,7 @@ def criar_registro_valido(**overrides):
         "parcelas": 1,
         "categoria": "Outros",
         "forma_pagamento": "Pix",
+        "conta_cartao": "Banco do Brasil",
     }
     dados.update(overrides)
     return RegistroFinanceiro(**dados)
@@ -95,6 +98,22 @@ def test_validar_forma_pagamento_aceita_formas_permitidas(forma_pagamento):
 def test_validar_forma_pagamento_rejeita_forma_desconhecida():
     with pytest.raises(EntradaInvalidaError):
         validar_forma_pagamento("Boleto")
+
+
+@pytest.mark.parametrize("conta_cartao", CONTAS_CARTOES_PERMITIDOS)
+def test_validar_conta_cartao_aceita_valores_permitidos(conta_cartao):
+    assert validar_conta_cartao(conta_cartao) is None
+
+
+@pytest.mark.parametrize("conta_cartao", ["", None, "Banco desconhecido"])
+def test_validar_conta_cartao_rejeita_valores_invalidos(conta_cartao):
+    with pytest.raises(EntradaInvalidaError, match="Conta/Cartão inválido"):
+        validar_conta_cartao(conta_cartao)
+
+
+def test_validar_registro_rejeita_conta_cartao_invalido():
+    with pytest.raises(EntradaInvalidaError, match="Conta/Cartão inválido"):
+        validar_registro(criar_registro_valido(conta_cartao="Banco desconhecido"))
 
 
 @pytest.mark.parametrize("parcelas", [1, MAX_PARCELAS])
