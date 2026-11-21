@@ -518,6 +518,3 @@ Este projeto é pessoal e de portfólio, mas sugestões são bem-vindas. Para co
 
 Evite incluir credenciais, dados financeiros reais ou prints com informações sensíveis.
 
-## 📄 Licença
-
-Placeholder: defina aqui a licença oficial do projeto. O repositório inclui um arquivo `LICENSE`; revise-o antes de publicar ou distribuir este software.
