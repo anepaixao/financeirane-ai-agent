@@ -5,14 +5,22 @@ import sys
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import httpx
 import pytest
+from google.genai import errors
 
 os.environ.setdefault("TELEGRAM_TOKEN", "telegram-token-ficticio")
 os.environ.setdefault("GEMINI_API_KEY", "gemini-api-key-ficticia")
 os.environ.setdefault("AUTHORIZED_CHAT_IDS", "123456789")
 
 import financeirane.ai_service as ai_service
-from financeirane.domain.exceptions import EntradaInvalidaError, InterpretacaoIAError
+from financeirane.domain.exceptions import (
+    EntradaInvalidaError,
+    IAErroInesperado,
+    IAIndisponivelError,
+    IAQuotaExcedidaError,
+    InterpretacaoIAError,
+)
 from financeirane.domain.models import RegistroFinanceiro
 
 
@@ -306,12 +314,104 @@ def test_interpretar_mensagem_chama_gemini_e_retorna_consulta(monkeypatch):
     generate_content.assert_called_once()
 
 
-def test_interpretar_mensagem_propaga_erro_do_cliente_gemini(monkeypatch):
-    generate_content = Mock(side_effect=RuntimeError("falha no cliente"))
+@pytest.mark.parametrize(
+    ("codigo", "status"),
+    [(429, "RESOURCE_EXHAUSTED"), (400, "RESOURCE_EXHAUSTED")],
+)
+def test_interpretar_mensagem_traduz_quota_gemini(monkeypatch, caplog, codigo, status):
+    erro = errors.ClientError(
+        codigo, {"status": status, "message": "quota-interna-token-ficticio"}
+    )
+    generate_content = Mock(side_effect=erro)
     monkeypatch.setattr(ai_service.client.models, "generate_content", generate_content)
 
-    with pytest.raises(RuntimeError, match="falha no cliente"):
-        ai_service.interpretar_mensagem("mensagem ficticia")
+    with caplog.at_level("WARNING", logger="ai_service"):
+        with pytest.raises(IAQuotaExcedidaError) as capturado:
+            ai_service.interpretar_mensagem("paguei 987654321 no mercado secreto")
+
+    assert capturado.value.__cause__ is erro
+    assert "categoria=quota_exceeded" in caplog.text
+    assert "quota-interna-token-ficticio" not in caplog.text
+    assert "987654321" not in caplog.text
+    assert "mercado secreto" not in caplog.text
+    generate_content.assert_called_once()
+
+
+def test_interpretar_mensagem_traduz_outro_client_error(monkeypatch, caplog):
+    erro = errors.ClientError(400, {"status": "INVALID_ARGUMENT"})
+    monkeypatch.setattr(
+        ai_service.client.models, "generate_content", Mock(side_effect=erro)
+    )
+
+    with caplog.at_level("WARNING", logger="ai_service"):
+        with pytest.raises(IAErroInesperado) as capturado:
+            ai_service.interpretar_mensagem("mensagem ficticia")
+
+    assert capturado.value.__cause__ is erro
+    assert "categoria=unexpected_error" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "erro", [TimeoutError("segredo-timeout"), httpx.ReadTimeout("segredo-timeout")]
+)
+def test_interpretar_mensagem_traduz_timeout(monkeypatch, caplog, erro):
+    monkeypatch.setattr(
+        ai_service.client.models, "generate_content", Mock(side_effect=erro)
+    )
+
+    with caplog.at_level("WARNING", logger="ai_service"):
+        with pytest.raises(IAIndisponivelError) as capturado:
+            ai_service.interpretar_mensagem("mensagem ficticia")
+
+    assert capturado.value.__cause__ is erro
+    assert "categoria=timeout" in caplog.text
+    assert "segredo-timeout" not in caplog.text
+
+
+def test_interpretar_mensagem_traduz_erro_5xx(monkeypatch, caplog):
+    erro = errors.ServerError(503, {"status": "UNAVAILABLE", "message": "segredo"})
+    monkeypatch.setattr(
+        ai_service.client.models, "generate_content", Mock(side_effect=erro)
+    )
+
+    with caplog.at_level("WARNING", logger="ai_service"):
+        with pytest.raises(IAIndisponivelError) as capturado:
+            ai_service.interpretar_mensagem("mensagem ficticia")
+
+    assert capturado.value.__cause__ is erro
+    assert "categoria=provider_unavailable" in caplog.text
+    assert "segredo" not in caplog.text
+
+
+def test_interpretar_mensagem_traduz_erro_inesperado(monkeypatch, caplog):
+    erro = RuntimeError("token-ficticio e mensagem financeira")
+    monkeypatch.setattr(
+        ai_service.client.models, "generate_content", Mock(side_effect=erro)
+    )
+
+    with caplog.at_level("ERROR", logger="ai_service"):
+        with pytest.raises(IAErroInesperado) as capturado:
+            ai_service.interpretar_mensagem("mensagem ficticia")
+
+    assert capturado.value.__cause__ is erro
+    assert "categoria=unexpected_error" in caplog.text
+    assert "token-ficticio" not in caplog.text
+    assert "mensagem financeira" not in caplog.text
+
+
+def test_interpretar_mensagem_nao_loga_resposta_invalida_do_gemini(monkeypatch, caplog):
+    resposta = SimpleNamespace(text='{"valor_total": "987654321 segredo"')
+    monkeypatch.setattr(
+        ai_service.client.models, "generate_content", Mock(return_value=resposta)
+    )
+
+    with caplog.at_level("ERROR", logger="ai_service"):
+        with pytest.raises(InterpretacaoIAError):
+            ai_service.interpretar_mensagem("mensagem ficticia")
+
+    assert "categoria=unexpected_error" in caplog.text
+    assert "987654321" not in caplog.text
+    assert "segredo" not in caplog.text
 
 
 def test_logs_nao_expoem_dados_sensiveis(monkeypatch, caplog):

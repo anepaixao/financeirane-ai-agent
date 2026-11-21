@@ -11,6 +11,12 @@ import pytest
 
 import financeirane.main as package_main
 import main
+from financeirane.domain.exceptions import (
+    IAErroInesperado,
+    IAIndisponivelError,
+    IAQuotaExcedidaError,
+    InterpretacaoIAError,
+)
 from financeirane.interfaces import telegram_bot
 
 AUTHORIZED_USER_ID = 123456789
@@ -406,6 +412,44 @@ def test_falha_da_ia_envia_fallback_e_nao_chama_planilha(caplog):
     )
     assert texto_mensagem not in caplog.text
     assert "987654321" not in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("erro", "mensagem_esperada"),
+    [
+        (
+            IAQuotaExcedidaError("limite atingido"),
+            "A FinanceirAne atingiu temporariamente o limite de uso da IA. Tente novamente mais tarde.",
+        ),
+        (
+            IAIndisponivelError("timeout"),
+            "A IA está temporariamente indisponível. Tente novamente em alguns instantes.",
+        ),
+        (
+            IAErroInesperado("falha inesperada"),
+            "Ops, ocorreu um erro ao processar o seu pedido.",
+        ),
+        (
+            InterpretacaoIAError("resposta bruta 987654321 segredo"),
+            "Ops, ocorreu um erro ao processar o seu pedido.",
+        ),
+    ],
+)
+def test_falha_conhecida_da_ia_envia_resposta_segura_sem_chamar_planilha(
+    erro, mensagem_esperada, caplog
+):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].side_effect = erro
+
+    with caplog.at_level(logging.ERROR, logger="main"):
+        bot.handler(criar_mensagem("paguei 987654321 no mercado secreto"))
+
+    bot.send_message.assert_any_call(CHAT_ID, mensagem_esperada)
+    dependencias["interpretar_mensagem"].assert_called_once()
+    dependencias["registrar_movimentacao"].assert_not_called()
+    dependencias["consultar_gastos_mes"].assert_not_called()
+    assert "987654321" not in caplog.text
+    assert "mercado secreto" not in caplog.text
 
 
 def test_falha_ao_registrar_movimentacao_envia_fallback_seguro(caplog):

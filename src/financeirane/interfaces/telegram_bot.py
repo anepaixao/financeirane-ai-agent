@@ -5,6 +5,12 @@ from dataclasses import replace
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
+from financeirane.domain.exceptions import (
+    IAErroInesperado,
+    IAIndisponivelError,
+    IAQuotaExcedidaError,
+    InterpretacaoIAError,
+)
 from financeirane.logging_config import duracao_ms, iniciar_medicao, mascarar_id
 
 logger = logging.getLogger("main")
@@ -185,6 +191,25 @@ def registrar_handlers(bot, planilha):
                 "Não consegui entender se você quer registrar ou consultar uma informação.",
             )
 
+        except IAQuotaExcedidaError:
+            bot.send_message(
+                chat_id,
+                "A FinanceirAne atingiu temporariamente o limite de uso da IA. Tente novamente mais tarde.",
+            )
+        except IAIndisponivelError:
+            bot.send_message(
+                chat_id,
+                "A IA está temporariamente indisponível. Tente novamente em alguns instantes.",
+            )
+        except IAErroInesperado:
+            bot.send_message(chat_id, "Ops, ocorreu um erro ao processar o seu pedido.")
+        except InterpretacaoIAError as exc:
+            bot.send_message(chat_id, "Ops, ocorreu um erro ao processar o seu pedido.")
+            logger.error(
+                "Resposta da IA inválida. operacao=processar_mensagem categoria=unexpected_error erro=%s duracao_ms=%s",
+                exc.__class__.__name__,
+                duracao_ms(inicio),
+            )
         except Exception as exc:
             bot.send_message(chat_id, "Ops, ocorreu um erro ao processar o seu pedido.")
             logger.exception(

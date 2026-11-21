@@ -5,8 +5,9 @@ import unicodedata
 from dataclasses import replace
 from datetime import datetime
 
+import httpx
 from google import genai
-from google.genai import types
+from google.genai import errors, types
 
 from financeirane.config import (
     CATEGORIAS_PERMITIDAS,
@@ -14,7 +15,12 @@ from financeirane.config import (
     FORMAS_PAGAMENTO_PERMITIDAS,
     GEMINI_API_KEY,
 )
-from financeirane.domain.exceptions import InterpretacaoIAError
+from financeirane.domain.exceptions import (
+    IAErroInesperado,
+    IAIndisponivelError,
+    IAQuotaExcedidaError,
+    InterpretacaoIAError,
+)
 from financeirane.domain.models import RegistroFinanceiro
 from financeirane.domain.validators import validar_registro
 from financeirane.logging_config import duracao_ms, iniciar_medicao
@@ -176,6 +182,49 @@ def interpretar_mensagem(texto):
                 response_mime_type="application/json",
             ),
         )
+    except errors.ClientError as exc:
+        if exc.code == 429 or exc.status == "RESOURCE_EXHAUSTED":
+            categoria = "quota_exceeded"
+            erro_interno = IAQuotaExcedidaError("Limite de uso da IA atingido.")
+        else:
+            categoria = "unexpected_error"
+            erro_interno = IAErroInesperado("Falha inesperada da IA.")
+        logger.warning(
+            "Falha na API Gemini. operacao=gemini_generate categoria=%s modelo=%s erro=%s codigo=%s duracao_ms=%s",
+            categoria,
+            modelo,
+            exc.__class__.__name__,
+            exc.code,
+            duracao_ms(inicio),
+        )
+        raise erro_interno from exc
+    except errors.ServerError as exc:
+        logger.warning(
+            "Falha na API Gemini. operacao=gemini_generate categoria=provider_unavailable modelo=%s erro=%s codigo=%s duracao_ms=%s",
+            modelo,
+            exc.__class__.__name__,
+            exc.code,
+            duracao_ms(inicio),
+        )
+        raise IAIndisponivelError("IA temporariamente indisponível.") from exc
+    except (TimeoutError, httpx.TimeoutException) as exc:
+        logger.warning(
+            "Falha na API Gemini. operacao=gemini_generate categoria=timeout modelo=%s erro=%s duracao_ms=%s",
+            modelo,
+            exc.__class__.__name__,
+            duracao_ms(inicio),
+        )
+        raise IAIndisponivelError("IA temporariamente indisponível.") from exc
+    except Exception as exc:
+        logger.error(
+            "Falha na API Gemini. operacao=gemini_generate categoria=unexpected_error modelo=%s erro=%s duracao_ms=%s",
+            modelo,
+            exc.__class__.__name__,
+            duracao_ms(inicio),
+        )
+        raise IAErroInesperado("Falha inesperada da IA.") from exc
+
+    try:
         dados = validar_resposta_gemini(response.text)
         if (
             isinstance(dados, RegistroFinanceiro)
@@ -184,8 +233,8 @@ def interpretar_mensagem(texto):
         ):
             dados = replace(dados, parcelas=1)
     except Exception as exc:
-        logger.exception(
-            "Erro ao interpretar mensagem com Gemini. operacao=gemini_generate modelo=%s erro=%s duracao_ms=%s",
+        logger.error(
+            "Erro ao validar resposta da IA. operacao=validar_resposta_gemini categoria=unexpected_error modelo=%s erro=%s duracao_ms=%s",
             modelo,
             exc.__class__.__name__,
             duracao_ms(inicio),
