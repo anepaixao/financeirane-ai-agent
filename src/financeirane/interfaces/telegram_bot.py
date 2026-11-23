@@ -2,10 +2,11 @@ import logging
 import re
 import unicodedata
 from dataclasses import replace
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from zoneinfo import ZoneInfo
 
 from financeirane.domain.exceptions import (
+    EntradaInvalidaError,
     IAErroInesperado,
     IAIndisponivelError,
     IAQuotaExcedidaError,
@@ -60,6 +61,10 @@ MESES_NOMEADOS = (
     "novembro",
     "dezembro",
 )
+DATA_NUMERICA = re.compile(
+    r"(?<![\d/])(?P<dia>\d{1,2})/(?P<mes>\d{1,2})"
+    r"(?:/(?P<ano>\d+))?(?![\d/])"
+)
 
 
 def data_atual_bahia():
@@ -70,10 +75,42 @@ def formatar_data(data):
     return data.strftime("%d/%m/%Y")
 
 
-def contem_data_explicita(texto):
+def resolver_data_numerica(texto_normalizado):
+    for correspondencia in DATA_NUMERICA.finditer(texto_normalizado):
+        antes = texto_normalizado[: correspondencia.start()]
+        depois = texto_normalizado[correspondencia.end() :]
+        if re.search(r"(?:parcela(?:s)?|r\$)\s*$", antes) or re.match(
+            r"\s+(?:parcelas?\b|(?:do|da)\s+(?:valor|total|preco)\b)", depois
+        ):
+            continue
+
+        ano_textual = correspondencia.group("ano")
+        dia = int(correspondencia.group("dia"))
+        mes = int(correspondencia.group("mes"))
+        contexto_data = re.search(r"\b(?:no\s+dia|dia|em)\s*$", antes)
+        if (
+            not contexto_data
+            and ano_textual is None
+            and not (1 <= dia <= 31 and 1 <= mes <= 12)
+        ):
+            continue
+
+        if ano_textual is not None and len(ano_textual) != 4:
+            raise EntradaInvalidaError("Data inválida. Use DD/MM ou DD/MM/AAAA.")
+        ano = int(ano_textual) if ano_textual else data_atual_bahia().year
+        try:
+            data_resolvida = date(ano, mes, dia)
+        except ValueError as exc:
+            raise EntradaInvalidaError(
+                "Data inválida. Use DD/MM ou DD/MM/AAAA."
+            ) from exc
+        return formatar_data(data_resolvida)
+
+    return None
+
+
+def contem_data_textual_explicita(texto):
     texto_normalizado = normalizar_texto_consulta(texto)
-    if re.search(r"\b\d{1,2}/\d{1,2}/\d{2,4}\b", texto_normalizado):
-        return True
 
     meses = "|".join(MESES_NOMEADOS)
     padrao_data_textual = (
@@ -83,10 +120,14 @@ def contem_data_explicita(texto):
 
 
 def resolver_data_registro(texto):
-    if contem_data_explicita(texto):
+    texto_normalizado = normalizar_texto_consulta(texto)
+    data_numerica = resolver_data_numerica(texto_normalizado)
+    if data_numerica is not None:
+        return data_numerica
+
+    if contem_data_textual_explicita(texto):
         return None
 
-    texto_normalizado = normalizar_texto_consulta(texto)
     hoje = data_atual_bahia()
 
     if re.search(r"\banteontem\b", texto_normalizado):
@@ -104,6 +145,18 @@ def aplicar_data_deterministica_registro(texto, registro):
         return registro
 
     return replace(registro, data=data_resolvida)
+
+
+def informar_data_numerica_invalida(bot, chat_id, texto):
+    try:
+        resolver_data_numerica(normalizar_texto_consulta(texto))
+    except EntradaInvalidaError:
+        bot.send_message(chat_id, "Data inválida. Use DD/MM ou DD/MM/AAAA.")
+        logger.warning(
+            "Data numérica inválida em registro. operacao=resolver_data_registro categoria=invalid_date"
+        )
+        return True
+    return False
 
 
 def registrar_handlers(bot, planilha):
@@ -203,6 +256,15 @@ def registrar_handlers(bot, planilha):
             )
         except IAErroInesperado:
             bot.send_message(chat_id, "Ops, ocorreu um erro ao processar o seu pedido.")
+        except EntradaInvalidaError as exc:
+            if informar_data_numerica_invalida(bot, chat_id, texto):
+                return
+            bot.send_message(chat_id, "Ops, ocorreu um erro ao processar o seu pedido.")
+            logger.error(
+                "Entrada inválida. operacao=processar_mensagem erro=%s duracao_ms=%s",
+                exc.__class__.__name__,
+                duracao_ms(inicio),
+            )
         except InterpretacaoIAError as exc:
             bot.send_message(chat_id, "Ops, ocorreu um erro ao processar o seu pedido.")
             logger.error(

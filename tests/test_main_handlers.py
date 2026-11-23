@@ -12,6 +12,7 @@ import pytest
 import financeirane.main as package_main
 import main
 from financeirane.domain.exceptions import (
+    EntradaInvalidaError,
     IAErroInesperado,
     IAIndisponivelError,
     IAQuotaExcedidaError,
@@ -228,6 +229,13 @@ class DataRegistroViradaAno:
         return DateTime(2027, 1, 1)
 
 
+class DataRegistroAnoBissexto:
+    @staticmethod
+    def now(timezone):
+        assert timezone.key == "America/Bahia"
+        return DateTime(2028, 11, 23)
+
+
 @pytest.mark.parametrize(
     ("texto", "data_esperada"),
     [
@@ -304,6 +312,155 @@ def test_registro_preserva_data_explicita_interpretada_pela_ia(monkeypatch, text
 
     registro = dependencias["registrar_movimentacao"].call_args.args[1]
     assert registro.data == "15/09/2026"
+
+
+@pytest.mark.parametrize(
+    ("texto", "data_esperada"),
+    [
+        ("gastei 20 reais dia 18/11", "18/11/2026"),
+        ("gastei 20 reais no dia 18/11", "18/11/2026"),
+        ("gastei 20 reais 18/11", "18/11/2026"),
+        ("gastei 20 reais em 01/01", "01/01/2026"),
+        ("gastei 20 reais dia 18/11/2025", "18/11/2025"),
+        ("gastei 20 reais 18/11/2025", "18/11/2025"),
+        ("gastei 20 reais dia 18/11/2026", "18/11/2026"),
+    ],
+)
+def test_registro_data_numerica_prevalece_sobre_gemini(
+    monkeypatch, texto, data_esperada
+):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake(
+        data="01/01/1999"
+    )
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroFixa)
+
+    bot.handler(criar_mensagem(texto))
+
+    registro = dependencias["registrar_movimentacao"].call_args.args[1]
+    assert registro.data == data_esperada
+
+
+def test_registro_aceita_29_fevereiro_em_ano_bissexto(monkeypatch):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake(
+        data="01/01/1999"
+    )
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroAnoBissexto)
+
+    bot.handler(criar_mensagem("gastei 20 reais dia 29/02"))
+
+    registro = dependencias["registrar_movimentacao"].call_args.args[1]
+    assert registro.data == "29/02/2028"
+
+
+@pytest.mark.parametrize(
+    "texto",
+    [
+        "gastei 20 reais dia 31/02",
+        "gastei 20 reais dia 32/11",
+        "gastei 20 reais em 32/11",
+        "gastei 20 reais dia 00/10",
+        "gastei 20 reais dia 15/13",
+        "gastei 20 reais dia 31/02/2026",
+        "gastei 20 reais dia 18/11/26",
+    ],
+)
+def test_data_numerica_invalida_nao_vira_hoje_nem_e_gravada(monkeypatch, caplog, texto):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake(
+        data="02/10/2026"
+    )
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroFixa)
+
+    with caplog.at_level(logging.WARNING, logger="main"):
+        bot.handler(criar_mensagem(texto))
+
+    dependencias["registrar_movimentacao"].assert_not_called()
+    bot.send_message.assert_any_call(CHAT_ID, "Data inválida. Use DD/MM ou DD/MM/AAAA.")
+    assert "categoria=invalid_date" in caplog.text
+    assert texto not in caplog.text
+
+
+def test_data_numerica_invalida_e_informada_mesmo_se_ia_rejeitar_antes(monkeypatch):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].side_effect = EntradaInvalidaError(
+        "Data inválida. Use o formato DD/MM/AAAA."
+    )
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroFixa)
+
+    bot.handler(criar_mensagem("gastei 20 reais dia 31/02"))
+
+    dependencias["registrar_movimentacao"].assert_not_called()
+    bot.send_message.assert_any_call(CHAT_ID, "Data inválida. Use DD/MM ou DD/MM/AAAA.")
+
+
+def test_par_numerico_ambiguo_nao_gera_erro_de_data(monkeypatch, caplog):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake(
+        data="01/01/1999"
+    )
+    dependencias["registrar_movimentacao"].return_value = "Registrado"
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroFixa)
+
+    with caplog.at_level(logging.WARNING, logger="main"):
+        bot.handler(criar_mensagem("paguei 20/20"))
+
+    registro = dependencias["registrar_movimentacao"].call_args.args[1]
+    assert registro.data == "02/10/2026"
+    assert "categoria=invalid_date" not in caplog.text
+    assert not any(
+        chamada.args[1].startswith("Data inválida")
+        for chamada in bot.send_message.call_args_list
+    )
+
+
+def test_erro_de_entrada_sem_data_numerica_mantem_resposta_generica():
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].side_effect = EntradaInvalidaError(
+        "Valor inválido."
+    )
+
+    bot.handler(criar_mensagem("gastei zero reais no mercado"))
+
+    dependencias["registrar_movimentacao"].assert_not_called()
+    bot.send_message.assert_any_call(
+        CHAT_ID, "Ops, ocorreu um erro ao processar o seu pedido."
+    )
+
+
+@pytest.mark.parametrize(
+    "texto",
+    ["paguei 3/12 parcelas", "paguei parcela 3/12", "paguei 1/2 do valor"],
+)
+def test_notacao_de_parcela_nao_e_interpretada_como_data(monkeypatch, texto):
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = RegistroFinanceiroFake(
+        data="01/01/1999", parcelas=12
+    )
+    monkeypatch.setattr(telegram_bot, "datetime", DataRegistroFixa)
+
+    bot.handler(criar_mensagem(texto))
+
+    registro = dependencias["registrar_movimentacao"].call_args.args[1]
+    assert registro.data == "02/10/2026"
+    assert registro.parcelas == 12
+
+
+def test_consulta_com_numeros_na_mensagem_nao_passa_pelo_resolvedor_de_data():
+    bot, dependencias = preparar_handler()
+    dependencias["interpretar_mensagem"].return_value = {
+        "intencao": "consultar",
+        "mes": "02",
+        "ano": "2026",
+    }
+
+    bot.handler(criar_mensagem("quanto gastei em 31/02?"))
+
+    dependencias["consultar_gastos_mes"].assert_called_once_with(
+        dependencias["planilha"], "02", "2026"
+    )
+    dependencias["registrar_movimentacao"].assert_not_called()
 
 
 def test_usuario_autorizado_com_consulta_chama_consultar_gastos_mes():
