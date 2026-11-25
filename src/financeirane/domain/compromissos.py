@@ -26,6 +26,14 @@ class CompromissoFinanceiro:
     tipo: TipoCompromisso
     status: StatusCompromisso
 
+    def esta_atrasado(self, data_referencia: date) -> bool:
+        if type(data_referencia) is not date:
+            raise EntradaInvalidaError("Data de referência deve ser uma data válida.")
+        return (
+            self.status is StatusCompromisso.PENDENTE
+            and self.vencimento < data_referencia
+        )
+
     def marcar_como_pago(self):
         if self.status is StatusCompromisso.PAGO:
             return self
