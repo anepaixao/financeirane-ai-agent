@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError
 from datetime import date, datetime
 from decimal import Decimal
 
@@ -97,6 +98,108 @@ def test_aceita_vencimento_bissexto():
     compromisso = criar_compromisso(vencimento=date(2028, 2, 29))
 
     assert compromisso.vencimento == date(2028, 2, 29)
+
+
+def test_marcar_como_pago_cria_novo_compromisso_sem_alterar_original():
+    pendente = criar_compromisso()
+
+    pago = pendente.marcar_como_pago()
+
+    assert pago is not pendente
+    assert pago.status is StatusCompromisso.PAGO
+    assert pendente.status is StatusCompromisso.PENDENTE
+    assert pago.descricao == pendente.descricao
+    assert pago.valor == pendente.valor
+    assert pago.vencimento == pendente.vencimento
+    assert pago.tipo is pendente.tipo
+
+
+def test_marcar_como_pago_repetidamente_retorna_mesma_instancia():
+    pago = criar_compromisso(status=StatusCompromisso.PAGO)
+
+    assert pago.marcar_como_pago() is pago
+    assert pago.marcar_como_pago().status is StatusCompromisso.PAGO
+
+
+def test_marcar_como_pendente_cria_novo_compromisso_sem_alterar_original():
+    pago = criar_compromisso(status=StatusCompromisso.PAGO)
+
+    pendente = pago.marcar_como_pendente()
+
+    assert pendente is not pago
+    assert pendente.status is StatusCompromisso.PENDENTE
+    assert pago.status is StatusCompromisso.PAGO
+    assert pendente.valor == pago.valor
+
+
+def test_marcar_como_pendente_repetidamente_retorna_mesma_instancia():
+    pendente = criar_compromisso()
+
+    assert pendente.marcar_como_pendente() is pendente
+
+
+def test_transicoes_de_estado_sao_reversiveis_e_deterministicas():
+    inicial = criar_compromisso()
+
+    final = inicial.marcar_como_pago().marcar_como_pendente()
+
+    assert final == inicial
+    assert final is not inicial
+
+
+def test_atualizar_campos_validos_cria_novo_compromisso():
+    original = criar_compromisso()
+
+    atualizado = original.atualizar(
+        descricao="  Internet  ",
+        valor="33.335",
+        vencimento=date(2026, 12, 15),
+        tipo="assinatura",
+    )
+
+    assert atualizado is not original
+    assert atualizado.descricao == "Internet"
+    assert atualizado.valor == Decimal("33.34")
+    assert atualizado.vencimento == date(2026, 12, 15)
+    assert atualizado.tipo is TipoCompromisso.ASSINATURA
+    assert atualizado.status is StatusCompromisso.PENDENTE
+    assert original.valor == Decimal("49.25")
+    assert original.descricao == "Conta de energia"
+
+
+def test_atualizar_sem_alteracoes_retorna_mesma_instancia():
+    compromisso = criar_compromisso()
+
+    assert compromisso.atualizar() is compromisso
+
+
+@pytest.mark.parametrize(
+    ("campo", "valor", "mensagem"),
+    [
+        ("descricao", "   ", "Descrição do compromisso"),
+        ("valor", 0, "maior que zero"),
+        ("valor", -5, "maior que zero"),
+        ("vencimento", "31/02/2026", "Vencimento"),
+        ("tipo", "cartao", "Tipo de compromisso"),
+        ("status", "pago", "Campo de atualização"),
+        ("campo_desconhecido", 1, "Campo de atualização"),
+    ],
+)
+def test_atualizar_rejeita_campos_ou_valores_invalidos(campo, valor, mensagem):
+    compromisso = criar_compromisso()
+
+    with pytest.raises(EntradaInvalidaError, match=mensagem):
+        compromisso.atualizar(**{campo: valor})
+
+    assert compromisso.status is StatusCompromisso.PENDENTE
+    assert compromisso.valor == Decimal("49.25")
+
+
+def test_compromisso_continua_imutavel():
+    compromisso = criar_compromisso()
+
+    with pytest.raises(FrozenInstanceError):
+        compromisso.status = StatusCompromisso.PAGO
 
 
 def test_registro_financeiro_existente_continua_funcionando():

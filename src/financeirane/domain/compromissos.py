@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 from enum import Enum
@@ -25,6 +25,24 @@ class CompromissoFinanceiro:
     vencimento: date
     tipo: TipoCompromisso
     status: StatusCompromisso
+
+    def marcar_como_pago(self):
+        if self.status is StatusCompromisso.PAGO:
+            return self
+        return replace(self, status=StatusCompromisso.PAGO)
+
+    def marcar_como_pendente(self):
+        if self.status is StatusCompromisso.PENDENTE:
+            return self
+        return replace(self, status=StatusCompromisso.PENDENTE)
+
+    def atualizar(self, **alteracoes):
+        campos_permitidos = {"descricao", "valor", "vencimento", "tipo"}
+        if not set(alteracoes) <= campos_permitidos:
+            raise EntradaInvalidaError("Campo de atualização do compromisso inválido.")
+        if not alteracoes:
+            return self
+        return replace(self, **alteracoes)
 
     def __post_init__(self):
         if not isinstance(self.descricao, str) or not self.descricao.strip():
