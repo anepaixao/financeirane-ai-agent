@@ -323,6 +323,8 @@ A soma das parcelas é exatamente igual a R$ 100,00. As linhas de uma compra par
 
 O Google Sheets não oferece transação real nem rollback. A escrita em lote melhora a atomicidade no nível da aplicação, mas não substitui uma transação de banco de dados.
 
+O adaptador de repositório de compromissos usa uma aba separada chamada `Compromissos`, criada manualmente com o cabeçalho `ID | Descrição | Valor | Vencimento | Tipo | Status`. Ele não altera a aba de movimentações nem cria lançamentos automaticamente. O Google Sheets não oferece atualização condicional por UUID: mesmo verificando o ID antes da escrita, edições concorrentes da aba podem causar inconsistências. Nesta etapa, pressupõe-se uma única instância realizando escritas automáticas.
+
 ## ▶️ Como executar
 
 Com o ambiente virtual ativo, execute pelo pacote:
