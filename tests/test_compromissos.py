@@ -100,6 +100,54 @@ def test_aceita_vencimento_bissexto():
     assert compromisso.vencimento == date(2028, 2, 29)
 
 
+@pytest.mark.parametrize(
+    ("status", "vencimento", "data_referencia", "esperado"),
+    [
+        (StatusCompromisso.PENDENTE, date(2026, 11, 23), date(2026, 11, 24), True),
+        (StatusCompromisso.PENDENTE, date(2026, 11, 24), date(2026, 11, 24), False),
+        (StatusCompromisso.PENDENTE, date(2026, 11, 25), date(2026, 11, 24), False),
+        (StatusCompromisso.PAGO, date(2026, 11, 23), date(2026, 11, 24), False),
+    ],
+)
+def test_esta_atrasado_depende_do_status_e_da_data(
+    status, vencimento, data_referencia, esperado
+):
+    original = criar_compromisso(status=status, vencimento=vencimento)
+
+    assert original.esta_atrasado(data_referencia) is esperado
+    assert original.status is status
+    assert original.vencimento == vencimento
+
+
+@pytest.mark.parametrize(
+    "data_referencia", [None, "24/11/2026", datetime(2026, 11, 24), 20261124]
+)
+def test_esta_atrasado_rejeita_data_de_referencia_invalida(data_referencia):
+    with pytest.raises(EntradaInvalidaError, match="Data de referência"):
+        criar_compromisso().esta_atrasado(data_referencia)
+
+
+def test_esta_atrasado_valida_referencia_mesmo_quando_pago():
+    pago = criar_compromisso(status=StatusCompromisso.PAGO)
+
+    with pytest.raises(EntradaInvalidaError, match="Data de referência"):
+        pago.esta_atrasado(None)
+
+
+def test_esta_atrasado_reflete_transicoes_sem_mutar_compromisso():
+    pendente = criar_compromisso(vencimento=date(2026, 11, 23))
+    referencia = date(2026, 11, 24)
+
+    pago = pendente.marcar_como_pago()
+    pendente_novamente = pago.marcar_como_pendente()
+
+    assert pendente.esta_atrasado(referencia) is True
+    assert pago.esta_atrasado(referencia) is False
+    assert pendente_novamente.esta_atrasado(referencia) is True
+    assert pendente.status is StatusCompromisso.PENDENTE
+    assert pago.status is StatusCompromisso.PAGO
+
+
 def test_marcar_como_pago_cria_novo_compromisso_sem_alterar_original():
     pendente = criar_compromisso()
 
